@@ -1,0 +1,2 @@
+[console_scripts]
+antiscam = antiscam.cli:main
