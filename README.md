@@ -28,6 +28,7 @@ cd antiscam
 
 # Instalacja zależności
 pip install -r requirements-dev.txt
+pip install -e .
 ```
 
 ### Uruchamianie API

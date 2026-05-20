@@ -28,6 +28,7 @@ cd antiscam
 
 # Install dependencies
 pip install -r requirements-dev.txt
+pip install -e .
 ```
 
 ### Running API
