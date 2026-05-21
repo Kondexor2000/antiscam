@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AntiScam Blog</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div>
+      <p class="eyebrow">AntiScam</p>
+      <h1>Blog bezpieczeństwa</h1>
+      <p class="lead">Praktyczne wpisy o phishingu, fałszywych linkach i ochronie przed oszustwami.</p>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="panel">
+      <div class="section-heading">
+        <h2>Najnowsze wpisy</h2>
+        <span id="workspace" class="workspace"></span>
+      </div>
+      <div id="posts" class="posts" aria-live="polite"></div>
+    </section>
+
+    <aside class="panel form-panel">
+      <h2>Dodaj wpis</h2>
+      <form id="post-form">
+        <label>
+          Tytuł
+          <input id="title" name="title" required maxlength="160">
+        </label>
+        <label>
+          Streszczenie
+          <textarea id="summary" name="summary" required maxlength="300"></textarea>
+        </label>
+        <label>
+          Treść
+          <textarea id="content" name="content" required></textarea>
+        </label>
+        <label>
+          Autor
+          <input id="author" name="author" required value="AntiScam Team">
+        </label>
+        <button type="submit">Opublikuj</button>
+      </form>
+      <p id="form-status" class="status" role="status"></p>
+    </aside>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

@@ -1,281 +1,149 @@
 # AntiScam
 
-Advanced phishing and fraud detection system for text messages based on intelligent analysis.
+AntiScam now contains two application surfaces:
 
-## Overview
+- a Python/FastAPI phishing-risk engine,
+- a C# ASP.NET Core Blog WebAPI with HTML files and SQLite storage.
 
-AntiScam is an API application for detecting fraud and phishing attempts in text messages. The system analyzes messages based on:
+The new blog API is connected to the workspace folder `C:\Users\kondz\antiscam`. By default, its SQLite database is created at `C:\Users\kondz\antiscam\data\antiscam-blog.sqlite`.
 
-- **BLIK Codes** - Detection of Polish 6-digit codes
-- **Links** - Distinguishing between trusted and suspicious domains
-- **Keywords** - Analysis of characteristic fraudulent message words
-- **Safety Context** - Identification of safety signals
-- **Intent** - Detection of urgent or manipulative language
-
-## Quick Start
-
-### Requirements
+## Requirements
 
 - Python 3.10+
+- .NET SDK 8.0+
 - pip
 
-### Installation
+## Quick Start: C# Blog WebAPI
 
-```bash
-# Clone repository
-git clone https://github.com/Kondexor2000/antiscam.git
-cd antiscam
-
-# Install dependencies
-pip install -r requirements-dev.txt
-pip install -e .
+```powershell
+dotnet restore AntiScamBlog.sln
+dotnet run --project src\AntiScam.Blog.Api\AntiScam.Blog.Api.csproj
 ```
 
-### Running API
+After startup, open the URL printed by `dotnet run`, usually `http://localhost:5000` or `http://localhost:5080`.
 
-```bash
-# Start FastAPI server
+### HTML Frontend
+
+Open:
+
+```text
+/
+```
+
+The page loads posts from the API and lets you create a new blog post.
+
+### Blog Endpoints
+
+```text
+GET    /api/health
+GET    /api/workspace
+GET    /api/posts
+GET    /api/posts/{slug}
+POST   /api/posts
+PUT    /api/posts/{id}
+DELETE /api/posts/{id}
+```
+
+Create a post:
+
+```powershell
+curl -Method POST http://localhost:5000/api/posts `
+  -ContentType "application/json" `
+  -Body '{"title":"Phishing alert","summary":"Short summary","content":"Post body","author":"AntiScam Team"}'
+```
+
+## Quick Start: Python AntiScam API
+
+```powershell
+pip install -r requirements-dev.txt
+pip install -e .
 uvicorn antiscam.api:app --reload
 ```
 
-API will be available at: http://localhost:8000
+The Python API will be available at `http://localhost:8000`.
 
-### Running CLI
+### Python API Endpoints
 
-```bash
-# Scan message
-python -m antiscam.cli "Send BLIK 123456 immediately confirm code!"
+```text
+GET  /
+POST /scan
 ```
 
-## API Reference
+Example:
 
-### Endpoints
-
-#### GET /
-
-Returns API status.
-
-**Response:**
-```json
-{
-  "message": "AntiScam API is running"
-}
+```powershell
+curl -Method POST http://localhost:8000/scan `
+  -ContentType "application/json" `
+  -Body '{"text":"Send BLIK 123456 immediately!"}'
 ```
 
-#### POST /scan
+## Tests
 
-Scans text message and returns risk assessment.
+C# tests:
 
-**Request:**
-```json
-{
-  "text": "Message to scan"
-}
+```powershell
+dotnet test AntiScamBlog.sln
 ```
 
-**Response:**
-```json
-{
-  "status": "LOW RISK",
-  "risk_score": 15,
-  "reasons": [
-    "Low-risk context detected"
-  ],
-  "safe_links": ["https://google.com"],
-  "risky_links": []
-}
-```
+Python tests:
 
-### Status Classifications
-
-- **LOW RISK** (0-49): Message appears safe
-- **MEDIUM RISK** (50-79): Potential threat
-- **HIGH RISK** (80-100): High degree of threat
-
-## Project Structure
-
-```
-antiscam/
-├── __init__.py           # Main module
-├── api.py               # FastAPI endpoints
-├── cli.py               # Command-line interface
-├── config.py            # Configuration and settings
-├── engine.py            # Main detection logic
-├── links.py             # Link analysis
-├── logger.py            # Logging system
-├── models.py            # Pydantic models
-├── patterns.py          # Analysis patterns
-├── scoring.py           # Scoring functions
-├── requirements-dev.txt # Python dependencies
-├── README.md            # Polish documentation
-├── README.en.md         # English documentation
-└── tests/               # Tests
-    ├── conftest.py      # Pytest configuration
-    ├── unit/            # Unit tests
-    │   ├── test_config.py
-    │   ├── test_links.py
-    │   ├── test_scoring.py
-    │   ├── test_engine.py
-    │   └── test_models.py
-    └── integration/     # Integration tests
-        ├── test_api.py
-        └── test_workflows.py
-```
-
-## Testing
-
-### Running tests
-
-```bash
-# All tests
+```powershell
 pytest
-
-# Unit tests only
-pytest tests/unit/
-
-# Integration tests only
-pytest tests/integration/
-
-# With coverage report
-pytest --cov=antiscam tests/
-
-# Verbose output
-pytest -v
 ```
 
-### Test Statistics
+The C# project includes unit tests for validation and slug generation plus integration tests for the API, SQLite persistence, and the static HTML page.
 
-- **108+ unit and integration tests**
-- **~95% code coverage**
-- **Execution time: <0.5s**
+## Structure
 
-## Risk Analysis Algorithm
-
-The system analyzes messages based on several criteria:
-
-### 1. BLIK Codes
-- **+60 points**: BLIK with confirming context
-- **+30 points**: BLIK without context
-
-### 2. Links
-- **+20-45 points**: Suspicious links
-- **-5 to -15 points**: Trusted links
-
-### 3. Keywords
-- Up to 30 points for characteristic words:
-  - "blik" (10 pts)
-  - "code" (5 pts)
-  - "immediately" (6 pts)
-  - "confirm" (5 pts)
-  - etc.
-
-### 4. Safety Context
-- **-10 points**: Two or more safety signals
-  - "hello", "ok", "meeting", "thank you"
-
-### 5. Intent
-- **+10 points**: Detected manipulative intent
-  - "last chance", "account blocked", "click now"
-
-## Configuration
-
-Configuration is in `config.py`:
-
-```python
-from antiscam.config import settings
-
-# Trusted domains
-settings.trusted_domains  # {'google.com', 'facebook.com', ...}
-
-# Keyword weights
-settings.keyword_weights  # {'blik': 10, 'code': 5, ...}
-
-# Safety signals
-settings.safe_signals     # ['hello', 'ok', ...]
-
-# Intent signals
-settings.intent_signals   # ['last chance', ...]
+```text
+antiscam/                                  Python AntiScam engine
+tests/                                     Python tests
+src/AntiScam.Blog.Api/                    C# ASP.NET Core Blog WebAPI
+src/AntiScam.Blog.Api/wwwroot/            HTML, CSS, and JS files
+tests/AntiScam.Blog.Api.Tests/            C# unit and integration tests
+AntiScamBlog.sln                          .NET solution
+README.md                                 Polish documentation
+README.en.md                              English documentation
 ```
 
-## Usage Examples
+## C# Blog WebAPI Configuration
 
-### Python API
+Defaults live in `src/AntiScam.Blog.Api/appsettings.json`:
 
-```python
-from antiscam.engine import calculate_risk
-
-# Safe message
-result = calculate_risk("Hello, let's meet normally.")
-# Returns: {"status": "LOW RISK", "risk_score": 0, ...}
-
-# Suspicious message
-result = calculate_risk("BLIK 123456 - send code immediately!")
-# Returns: {"status": "HIGH RISK", "risk_score": 85, ...}
+```json
+{
+  "Workspace": {
+    "RootPath": "C:\\Users\\kondz\\antiscam"
+  },
+  "Blog": {
+    "DatabasePath": "C:\\Users\\kondz\\antiscam\\data\\antiscam-blog.sqlite"
+  }
+}
 ```
 
-### cURL
+For tests or local experiments, override the database path with an environment variable:
 
-```bash
-# Scan message
-curl -X POST http://localhost:8000/scan \
-  -H "Content-Type: application/json" \
-  -d '{"text": "Confirm your data quickly!"}'
+```powershell
+$env:ANTISCAM_BLOG_DB="C:\temp\antiscam-blog.sqlite"
 ```
 
-### Python requests
+## GitHub
 
-```python
-import requests
+The repository origin is configured as:
 
-response = requests.post(
-    "http://localhost:8000/scan",
-    json={"text": "Send BLIK"}
-)
-print(response.json())
+```text
+https://github.com/Kondexor2000/antiscam.git
 ```
 
-## Logging
+Suggested flow after changes:
 
-The application generates logs for all scans:
-
+```powershell
+git status
+git add .
+git commit -m "Add C# blog WebAPI with SQLite"
+git push origin main
 ```
-[INFO] antiscam - scan_started
-[INFO] antiscam - scan_finished
-```
-
-## Contributing
-
-To contribute to the project:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-### Coding Standards
-
-- Write clean, readable code
-- Add tests for new features
-- Ensure all tests pass
-- Add documentation for new functions
 
 ## License
 
 This project is available under the MIT License.
-
-## Support
-
-If you encounter issues, open an Issue on GitHub.
-
-## Learn More
-
-To learn more about phishing and security:
-- [OWASP](https://owasp.org/)
-- [Anti-Phishing Working Group](https://apwg.org/)
-- [CyberAware](https://www.cyberaware.gov.uk/)
-
----
-
-**Last updated**: May 20, 2026  
-**Version**: 0.1
