@@ -41,6 +41,12 @@ form.addEventListener("submit", async (event) => {
   });
 
   if (!response.ok) {
+    if (response.status === 422) {
+      const problem = await response.json();
+      statusElement.textContent = `Nie opublikowano: wykryto ryzyko ${problem.risk.status} (${problem.risk.riskScore}/100).`;
+      return;
+    }
+
     statusElement.textContent = "Nie udało się opublikować wpisu.";
     return;
   }

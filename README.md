@@ -32,6 +32,8 @@ Otwórz w przeglądarce:
 
 Strona ładuje wpisy z API i pozwala dodać nowy wpis blogowy.
 
+Przed publikacją C# WebAPI analizuje tytuł, streszczenie, treść i autora. Wpis zostanie zapisany tylko przy statusie `LOW RISK`; dla `MEDIUM RISK` lub `HIGH RISK` API zwraca `422 Unprocessable Entity` i nie zapisuje wpisu w SQLite.
+
 ### Endpointy bloga
 
 ```text
@@ -92,6 +94,7 @@ pytest
 ```
 
 Projekt C# zawiera testy jednostkowe dla walidacji i slugów oraz testy integracyjne API, SQLite i statycznej strony HTML.
+Obejmuje też testy blokowania publikacji wpisów, w których wykryto ryzyko phishingu lub oszustwa.
 
 ## Struktura
 

@@ -53,6 +53,23 @@ public sealed class BlogApiTests : IClassFixture<BlogApiFactory>
     }
 
     [Fact]
+    public async Task CreatePost_DoesNotPersistPostWhenRiskIsDetected()
+    {
+        var input = new BlogPostInput(
+            "Pilny BLIK",
+            "Konto zablokowane.",
+            "Wyślij kod BLIK 123456 natychmiast i kliknij teraz.",
+            "Scammer");
+
+        var response = await _client.PostAsJsonAsync("/api/posts", input);
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+
+        var fetched = await _client.GetAsync("/api/posts/pilny-blik");
+        Assert.Equal(HttpStatusCode.NotFound, fetched.StatusCode);
+    }
+
+    [Fact]
     public async Task HomePage_ReturnsStaticHtml()
     {
         var html = await _client.GetStringAsync("/");

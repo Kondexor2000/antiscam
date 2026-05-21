@@ -32,6 +32,8 @@ Open:
 
 The page loads posts from the API and lets you create a new blog post.
 
+Before publishing, the C# WebAPI analyzes the title, summary, content, and author. A post is saved only when the result is `LOW RISK`; for `MEDIUM RISK` or `HIGH RISK`, the API returns `422 Unprocessable Entity` and does not write the post to SQLite.
+
 ### Blog Endpoints
 
 ```text
@@ -92,6 +94,7 @@ pytest
 ```
 
 The C# project includes unit tests for validation and slug generation plus integration tests for the API, SQLite persistence, and the static HTML page.
+It also includes tests that verify risky phishing or scam-like posts are blocked before publication.
 
 ## Structure
 
