@@ -6,3 +6,8 @@ obj/
 data/*.sqlite
 data/*.sqlite-shm
 data/*.sqlite-wal
+*.pdf
+tools/
+AI_antiscam/
+pdf_strings/
+pdf_texts/

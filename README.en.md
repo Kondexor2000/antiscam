@@ -69,6 +69,7 @@ The Python API will be available at `http://localhost:8000`.
 ```text
 GET  /
 POST /scan
+POST /ai/explain
 ```
 
 Example:
@@ -77,6 +78,14 @@ Example:
 curl -Method POST http://localhost:8000/scan `
   -ContentType "application/json" `
   -Body '{"text":"Send BLIK 123456 immediately!"}'
+```
+
+The `/ai/explain` endpoint makes the AI/NLP value visible: it detects the user's intent, emotional tone, important terms, named entities, scam-pattern similarity, and suggests a safe next action.
+
+```powershell
+curl -Method POST http://localhost:8000/ai/explain `
+  -ContentType "application/json" `
+  -Body '{"text":"I am scared, Bank Polska wants my BLIK code 123456 urgently"}'
 ```
 
 ## Tests

@@ -18,6 +18,7 @@ TOKEN_PATTERN = re.compile(r"[a-zA-ZąćęłńóśźżĄĆĘŁŃÓŚŹŻ0-9]+")
 NAMED_ENTITY_PATTERN = re.compile(
     r"\b(?:[A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ]+)(?:\s+[A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ]+)*\b"
 )
+ENTITY_STOPWORDS = {"boj", "boję", "boje", "proszę", "prosze", "dziękuję", "dziekuje"}
 
 
 def tokenize(text: str) -> list[str]:
@@ -117,7 +118,12 @@ def extract_terms(text: str, min_length: int = 4) -> list[str]:
 
 
 def extract_named_entities(text: str) -> list[str]:
-    return [match.group(0) for match in NAMED_ENTITY_PATTERN.finditer(text)]
+    entities = []
+    for match in NAMED_ENTITY_PATTERN.finditer(text):
+        entity = match.group(0)
+        if entity.lower() not in ENTITY_STOPWORDS:
+            entities.append(entity)
+    return entities
 
 
 class TranslationMemory:
@@ -147,6 +153,18 @@ class DialogResponse:
     intent: str
     message: str
     emotion: str
+
+
+@dataclass(frozen=True)
+class AiAssistanceReport:
+    purpose: str
+    intent: str
+    emotion: str
+    suggested_action: str
+    extracted_terms: list[str]
+    named_entities: list[str]
+    scam_similarity: float
+    what_ai_makes_easier: list[str]
 
 
 class AntiScamDialogBot:
@@ -182,6 +200,32 @@ def detect_emotion(text: str) -> str:
     if any(word in lowered for word in ["zly", "zły", "wkurzony", "oszust"]):
         return "anger"
     return "neutral"
+
+
+def explain_ai_assistance(text: str) -> AiAssistanceReport:
+    """Explain what the AI/NLP layer helps with for a single message."""
+
+    bot_response = AntiScamDialogBot().respond(text)
+    scam_pattern = bag_of_words("pilny kod blik konto zablokowane kliknij link natychmiast")
+    message_vector = bag_of_words(text)
+    similarity = cosine_similarity(message_vector, scam_pattern)
+
+    return AiAssistanceReport(
+        purpose="AI helps turn a raw message into an actionable safety decision.",
+        intent=bot_response.intent,
+        emotion=bot_response.emotion,
+        suggested_action=bot_response.message,
+        extracted_terms=extract_terms(text)[:8],
+        named_entities=extract_named_entities(text),
+        scam_similarity=round(similarity, 4),
+        what_ai_makes_easier=[
+            "recognizes the user's likely intent",
+            "detects emotional tone for calmer support",
+            "extracts important terms and named entities",
+            "compares the message with known scam-like wording",
+            "suggests a concrete next step instead of only returning a score",
+        ],
+    )
 
 
 class KnowledgeGraph:

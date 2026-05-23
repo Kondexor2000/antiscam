@@ -69,6 +69,7 @@ API Pythonowe będzie dostępne pod adresem `http://localhost:8000`.
 ```text
 GET  /
 POST /scan
+POST /ai/explain
 ```
 
 Przykład:
@@ -77,6 +78,14 @@ Przykład:
 curl -Method POST http://localhost:8000/scan `
   -ContentType "application/json" `
   -Body '{"text":"Wyślij BLIK 123456 natychmiast!"}'
+```
+
+Endpoint `/ai/explain` pokazuje praktycznie, co ułatwia AI/NLP w projekcie: rozpoznaje intencję użytkownika, ton emocjonalny, ważne terminy, nazwy własne, podobieństwo do wzorca oszustwa i sugeruje bezpieczne następne działanie.
+
+```powershell
+curl -Method POST http://localhost:8000/ai/explain `
+  -ContentType "application/json" `
+  -Body '{"text":"Boję się, Bank Polska chce kod BLIK 123456 pilnie"}'
 ```
 
 ## Testy

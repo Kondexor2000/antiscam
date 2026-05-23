@@ -192,3 +192,21 @@ class TestEndpointIntegration:
         # Call home endpoint again
         home_response2 = client.get("/")
         assert home_response2.status_code == 200
+
+
+class TestAiExplainEndpoint:
+    """Test endpoint that explains practical AI assistance."""
+
+    def test_ai_explain_returns_actionable_report(self, client):
+        response = client.post(
+            "/ai/explain",
+            json={"text": "Boję się, Bank Polska chce kod BLIK 123456 pilnie"}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["intent"] == "report_scam"
+        assert data["emotion"] == "anxiety"
+        assert data["scam_similarity"] > 0
+        assert "suggested_action" in data
+        assert "Bank Polska" in data["named_entities"]

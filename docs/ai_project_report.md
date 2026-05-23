@@ -31,6 +31,8 @@ The AI layer supports the existing security use case:
 - the knowledge graph stores mitigation facts,
 - cloud profiles support deployment discussion.
 
+The clearest user-facing feature is `POST /ai/explain`. It answers the practical question "what does AI make easier here?" by returning one report with intent, emotion, extracted terms, named entities, scam-pattern similarity and a suggested action. This turns a raw suspicious message into guidance that is easier to understand than a numeric risk score alone.
+
 ## Evaluation
 
 Run:

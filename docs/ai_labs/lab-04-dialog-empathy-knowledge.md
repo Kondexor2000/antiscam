@@ -10,6 +10,7 @@ Build a small task-oriented interaction around phishing support.
 2. Inspect returned intent, message and emotion.
 3. Add mitigation facts to `KnowledgeGraph`.
 4. Query facts by relation.
+5. Call `POST /ai/explain` and compare the explanation with the raw `/scan` result.
 
 ## Assessment
 

@@ -8,6 +8,7 @@ from antiscam.ai import (
     cloud_deployment_profile,
     cosine_similarity,
     detect_emotion,
+    explain_ai_assistance,
     extract_named_entities,
     extract_terms,
     tokenize,
@@ -70,6 +71,14 @@ def test_extract_terms_and_named_entities_support_cat_and_mt_labs():
     assert "Bank Polska" in extract_named_entities(text)
 
 
+def test_extract_named_entities_ignores_sentence_initial_emotion_word():
+    entities = extract_named_entities("Boję się, Bank Polska chce kod BLIK.")
+
+    assert "Bank Polska" in entities
+    assert "Boję" not in entities
+    assert "Boj" not in entities
+
+
 def test_dialog_bot_responds_to_blik_intent_with_emotion():
     response = AntiScamDialogBot().respond("Boję się, ktoś chce kod BLIK")
 
@@ -96,3 +105,13 @@ def test_cloud_deployment_profile_covers_cloud_models():
     profile = cloud_deployment_profile()
 
     assert {"iaas", "paas", "faas", "saas"} <= set(profile)
+
+
+def test_explain_ai_assistance_shows_practical_value():
+    report = explain_ai_assistance("Boję się, Bank Polska chce kod BLIK 123456 pilnie")
+
+    assert report.intent == "report_scam"
+    assert report.emotion == "anxiety"
+    assert report.scam_similarity > 0
+    assert "Bank Polska" in report.named_entities
+    assert any("suggests" in item for item in report.what_ai_makes_easier)
