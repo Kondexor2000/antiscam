@@ -95,6 +95,19 @@ pytest
 
 Projekt C# zawiera testy jednostkowe dla walidacji i slugów oraz testy integracyjne API, SQLite i statycznej strony HTML.
 Obejmuje też testy blokowania publikacji wpisów, w których wykryto ryzyko phishingu lub oszustwa.
+Obejmuje również testy kryptografii: PBKDF2-HMAC-SHA256 i AES-GCM-256.
+
+## Zgodność z sylabusami
+
+Materiały wymagane do oceny projektu znajdują się w:
+
+- `SYLLABUS_MAPPING.md` - mapowanie efektów uczenia się na kod i dokumentację,
+- `docs/project_report.md` - raport projektowy,
+- `docs/security_audit.md` - przegląd bezpieczeństwa i checklista,
+- `docs/cryptography.md` - opis hashowania, szyfrowania i zarządzania kluczami,
+- `docs/demo.md` - scenariusz demonstracji,
+- `docs/presentation_outline.md` - konspekt prezentacji,
+- `docs/labs/` - instrukcje laboratoryjne.
 
 ## Struktura
 
@@ -104,6 +117,8 @@ tests/                                     Testy Python
 src/AntiScam.Blog.Api/                    C# ASP.NET Core Blog WebAPI
 src/AntiScam.Blog.Api/wwwroot/            Pliki HTML, CSS i JS
 tests/AntiScam.Blog.Api.Tests/            Testy jednostkowe i integracyjne C#
+docs/                                     Raport, audyt, demo i laboratoria
+SYLLABUS_MAPPING.md                       Mapowanie projektu na sylabusy
 AntiScamBlog.sln                          Rozwiązanie .NET
 README.md                                 Dokumentacja PL
 README.en.md                              Dokumentacja EN

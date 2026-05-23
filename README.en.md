@@ -95,6 +95,19 @@ pytest
 
 The C# project includes unit tests for validation and slug generation plus integration tests for the API, SQLite persistence, and the static HTML page.
 It also includes tests that verify risky phishing or scam-like posts are blocked before publication.
+It also includes cryptography tests for PBKDF2-HMAC-SHA256 and AES-GCM-256.
+
+## Syllabus Compliance
+
+Assessment materials are available in:
+
+- `SYLLABUS_MAPPING.md` - learning-outcome mapping to code and documentation,
+- `docs/project_report.md` - project report,
+- `docs/security_audit.md` - security review and checklist,
+- `docs/cryptography.md` - password hashing, encryption, and key-management notes,
+- `docs/demo.md` - demonstration script,
+- `docs/presentation_outline.md` - presentation outline,
+- `docs/labs/` - lab instructions.
 
 ## Structure
 
@@ -104,6 +117,8 @@ tests/                                     Python tests
 src/AntiScam.Blog.Api/                    C# ASP.NET Core Blog WebAPI
 src/AntiScam.Blog.Api/wwwroot/            HTML, CSS, and JS files
 tests/AntiScam.Blog.Api.Tests/            C# unit and integration tests
+docs/                                     Report, audit, demo, and labs
+SYLLABUS_MAPPING.md                       Project-to-syllabus mapping
 AntiScamBlog.sln                          .NET solution
 README.md                                 Polish documentation
 README.en.md                              English documentation
