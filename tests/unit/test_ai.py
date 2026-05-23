@@ -1,0 +1,98 @@
+from antiscam.ai import (
+    AntiScamDialogBot,
+    KnowledgeGraph,
+    NGramLanguageModel,
+    NaiveBayesTextClassifier,
+    TranslationMemory,
+    bag_of_words,
+    cloud_deployment_profile,
+    cosine_similarity,
+    detect_emotion,
+    extract_named_entities,
+    extract_terms,
+    tokenize,
+)
+
+
+def test_tokenize_keeps_polish_words_and_numbers():
+    assert tokenize("Wyślij BLIK 123456!") == ["wyślij", "blik", "123456"]
+
+
+def test_cosine_similarity_prefers_related_texts():
+    left = bag_of_words("pilny kod blik")
+    related = bag_of_words("kod blik pilnie")
+    unrelated = bag_of_words("spotkanie zespolu")
+
+    assert cosine_similarity(left, related) > cosine_similarity(left, unrelated)
+
+
+def test_naive_bayes_classifier_predicts_scam_label():
+    classifier = NaiveBayesTextClassifier()
+    classifier.train(
+        [
+            ("wyślij kod blik natychmiast", "scam"),
+            ("konto zablokowane kliknij link", "scam"),
+            ("spotkanie jutro o dziesiatej", "safe"),
+            ("dziekuje za dokument", "safe"),
+        ]
+    )
+
+    result = classifier.predict("pilnie wyślij kod blik")
+
+    assert result.label == "scam"
+    assert set(result.scores) == {"scam", "safe"}
+
+
+def test_ngram_language_model_scores_seen_context():
+    model = NGramLanguageModel(n=2)
+    model.train(["kod blik", "kod sms"])
+
+    assert model.probability(["kod"], "blik") > 0
+
+
+def test_translation_memory_suggests_closest_segment():
+    memory = TranslationMemory()
+    memory.add("verify the bank link", "zweryfikuj link banku")
+    memory.add("tomorrow meeting", "jutrzejsze spotkanie")
+
+    suggestion = memory.suggest("verify suspicious bank link")
+
+    assert suggestion is not None
+    assert suggestion[0] == "zweryfikuj link banku"
+    assert suggestion[1] > 0
+
+
+def test_extract_terms_and_named_entities_support_cat_and_mt_labs():
+    text = "AntiScam chroni klientów Bank Polska przed phishingiem."
+
+    assert "phishingiem" in extract_terms(text)
+    assert "AntiScam" in extract_named_entities(text)
+    assert "Bank Polska" in extract_named_entities(text)
+
+
+def test_dialog_bot_responds_to_blik_intent_with_emotion():
+    response = AntiScamDialogBot().respond("Boję się, ktoś chce kod BLIK")
+
+    assert response.intent == "report_scam"
+    assert response.emotion == "anxiety"
+    assert "Nie podawaj kodu" in response.message
+
+
+def test_detect_emotion_has_simple_labels():
+    assert detect_emotion("dziękuję, wszystko ok") == "positive"
+    assert detect_emotion("to oszust, jestem zły") == "anger"
+
+
+def test_knowledge_graph_stores_domain_facts():
+    graph = KnowledgeGraph()
+    graph.add("BLIK scam", "uses", "social engineering")
+    graph.add("BLIK scam", "mitigated_by", "out-of-band verification")
+
+    assert ("uses", "social engineering") in graph.facts_about("BLIK scam")
+    assert "out-of-band verification" in graph.objects("mitigated_by")
+
+
+def test_cloud_deployment_profile_covers_cloud_models():
+    profile = cloud_deployment_profile()
+
+    assert {"iaas", "paas", "faas", "saas"} <= set(profile)

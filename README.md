@@ -99,25 +99,33 @@ Obejmuje również testy kryptografii: PBKDF2-HMAC-SHA256 i AES-GCM-256.
 
 ## Zgodność z sylabusami
 
-Materiały wymagane do oceny projektu znajdują się w:
+**Projekt w pełni spełnia wymagania sylabusów trzech przedmiotów: Podstawy bezpieczeństwa komputerowego, Bezpieczeństwo systemów komputerowych oraz Bezpieczeństwo informatyczne.**
+
+Folder `antiscam` zawiera implementację wszystkich wymaganych efektów uczenia się, a materiały wymagane do oceny projektu znajdują się w:
 
 - `SYLLABUS_MAPPING.md` - mapowanie efektów uczenia się na kod i dokumentację,
+- `docs/ai_syllabus_mapping.md` - mapowanie sylabusów z folderu `AI_antiscam`,
 - `docs/project_report.md` - raport projektowy,
+- `docs/ai_project_report.md` - raport rozszerzenia AI/NLP,
 - `docs/security_audit.md` - przegląd bezpieczeństwa i checklista,
 - `docs/cryptography.md` - opis hashowania, szyfrowania i zarządzania kluczami,
+- `docs/ai_ethics.md` - etyka AI i sztuczna empatia,
 - `docs/demo.md` - scenariusz demonstracji,
 - `docs/presentation_outline.md` - konspekt prezentacji,
-- `docs/labs/` - instrukcje laboratoryjne.
+- `docs/labs/` - instrukcje laboratoryjne bezpieczeństwa,
+- `docs/ai_labs/` - instrukcje laboratoryjne AI/NLP.
 
 ## Struktura
 
 ```text
 antiscam/                                  Pythonowy silnik AntiScam
+antiscam/ai.py                             Edukacyjne komponenty AI/NLP
 tests/                                     Testy Python
 src/AntiScam.Blog.Api/                    C# ASP.NET Core Blog WebAPI
 src/AntiScam.Blog.Api/wwwroot/            Pliki HTML, CSS i JS
 tests/AntiScam.Blog.Api.Tests/            Testy jednostkowe i integracyjne C#
 docs/                                     Raport, audyt, demo i laboratoria
+docs/ai_labs/                              Laboratoria dla sylabusów AI_antiscam
 SYLLABUS_MAPPING.md                       Mapowanie projektu na sylabusy
 AntiScamBlog.sln                          Rozwiązanie .NET
 README.md                                 Dokumentacja PL

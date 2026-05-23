@@ -49,3 +49,15 @@ Ten dokument mapuje wymagania z trzech sylabusow PDF na elementy repozytorium An
 | Demonstracja | `docs/demo.md` |
 | Laboratoria/zadania | `docs/labs/` |
 | Przeglad bezpieczenstwa | `docs/security_audit.md` |
+
+## Rozszerzenie AI_antiscam
+
+Folder `AI_antiscam/` zawiera oddzielny zestaw 11 sylabusow zwiazanych z AI, NLP, tlumaczeniem, systemami dialogowymi, inzynieria wiedzy, chmura i sztuczna empatia. Ich szczegolowe mapowanie znajduje sie w `docs/ai_syllabus_mapping.md`.
+
+Najwazniejsze dowody zgodnosci:
+
+- `antiscam/ai.py` - lekka warstwa AI/NLP,
+- `tests/unit/test_ai.py` - testy jednostkowe komponentow AI,
+- `docs/ai_project_report.md` - raport projektu AI,
+- `docs/ai_ethics.md` - etyka AI i sztuczna empatia,
+- `docs/ai_labs/` - laboratoria dla sylabusow AI.

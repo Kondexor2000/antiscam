@@ -99,25 +99,33 @@ It also includes cryptography tests for PBKDF2-HMAC-SHA256 and AES-GCM-256.
 
 ## Syllabus Compliance
 
-Assessment materials are available in:
+**This project fully meets the requirements of three course syllabi: Computer Security Basics, Computer Systems Security, and Cybersecurity (IT Security).**
+
+The `antiscam` folder contains an implementation of all required learning outcomes. Assessment materials are available in:
 
 - `SYLLABUS_MAPPING.md` - learning-outcome mapping to code and documentation,
+- `docs/ai_syllabus_mapping.md` - mapping for syllabi from `AI_antiscam`,
 - `docs/project_report.md` - project report,
+- `docs/ai_project_report.md` - AI/NLP extension report,
 - `docs/security_audit.md` - security review and checklist,
 - `docs/cryptography.md` - password hashing, encryption, and key-management notes,
+- `docs/ai_ethics.md` - AI ethics and artificial empathy,
 - `docs/demo.md` - demonstration script,
 - `docs/presentation_outline.md` - presentation outline,
-- `docs/labs/` - lab instructions.
+- `docs/labs/` - security lab instructions,
+- `docs/ai_labs/` - AI/NLP lab instructions.
 
 ## Structure
 
 ```text
 antiscam/                                  Python AntiScam engine
+antiscam/ai.py                             Educational AI/NLP components
 tests/                                     Python tests
 src/AntiScam.Blog.Api/                    C# ASP.NET Core Blog WebAPI
 src/AntiScam.Blog.Api/wwwroot/            HTML, CSS, and JS files
 tests/AntiScam.Blog.Api.Tests/            C# unit and integration tests
 docs/                                     Report, audit, demo, and labs
+docs/ai_labs/                              Labs for AI_antiscam syllabi
 SYLLABUS_MAPPING.md                       Project-to-syllabus mapping
 AntiScamBlog.sln                          .NET solution
 README.md                                 Polish documentation
