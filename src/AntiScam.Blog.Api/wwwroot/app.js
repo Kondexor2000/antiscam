@@ -43,12 +43,10 @@ form.addEventListener("submit", async (event) => {
   if (!response.ok) {
     if (response.status === 422) {
       const problem = await response.json();
-      const reasons = Array.isArray(problem.risk.reasons) && problem.risk.reasons.length > 0
-        ? ` Powody: ${problem.risk.reasons.join("; ")}.`
-        : "";
-      const explanation = problem.risk.blockExplanation
+      const explanation = problem.aiExplanation
+        ?? problem.risk.blockExplanation
         ?? `Nie opublikowano: wykryto ryzyko ${problem.risk.status} (${problem.risk.riskScore}/100).`;
-      statusElement.textContent = `${explanation}${reasons}`;
+      statusElement.textContent = explanation;
       return;
     }
 

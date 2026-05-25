@@ -67,6 +67,9 @@ public sealed class BlogApiTests : IClassFixture<BlogApiFactory>
         Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
         using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         var risk = problem.RootElement.GetProperty("risk");
+        var aiExplanation = problem.RootElement.GetProperty("aiExplanation").GetString();
+        Assert.Contains("ai.py", aiExplanation);
+        Assert.Contains("BLIK CONFIRMED", aiExplanation);
         Assert.Contains("zablokowana", risk.GetProperty("blockExplanation").GetString());
         Assert.Contains("BLIK CONFIRMED", risk.GetProperty("blockExplanation").GetString());
 

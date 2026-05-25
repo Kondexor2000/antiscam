@@ -22,6 +22,7 @@ builder.Services.AddSingleton(new WorkspaceOptions(workspacePath));
 builder.Services.AddSingleton(new BlogDatabaseOptions(databasePath));
 builder.Services.AddSingleton<ISlugGenerator, SlugGenerator>();
 builder.Services.AddSingleton<IRiskAnalyzer, RiskAnalyzer>();
+builder.Services.AddSingleton<IBlockExplanationProvider, PythonAiBlockExplanationProvider>();
 builder.Services.AddSingleton<IBlogRepository, SqliteBlogRepository>();
 
 var app = builder.Build();
@@ -70,7 +71,12 @@ app.MapGet("/api/posts/{slug}", async (string slug, IBlogRepository blogReposito
     return post is null ? Results.NotFound() : Results.Ok(post);
 });
 
-app.MapPost("/api/posts", async (BlogPostInput input, IBlogRepository blogRepository, IRiskAnalyzer riskAnalyzer) =>
+app.MapPost("/api/posts", async (
+    BlogPostInput input,
+    IBlogRepository blogRepository,
+    IRiskAnalyzer riskAnalyzer,
+    IBlockExplanationProvider blockExplanationProvider,
+    CancellationToken cancellationToken) =>
 {
     var validation = BlogPostValidator.Validate(input);
     if (validation.Count > 0)
@@ -81,9 +87,11 @@ app.MapPost("/api/posts", async (BlogPostInput input, IBlogRepository blogReposi
     var risk = riskAnalyzer.Analyze(input);
     if (!risk.CanPublish)
     {
+        var aiExplanation = await blockExplanationProvider.ExplainAsync(input, risk, cancellationToken);
         return Results.Json(new
         {
             message = "Post was not published because scam risk was detected.",
+            aiExplanation,
             risk
         }, statusCode: StatusCodes.Status422UnprocessableEntity);
     }
@@ -92,7 +100,13 @@ app.MapPost("/api/posts", async (BlogPostInput input, IBlogRepository blogReposi
     return Results.Created($"/api/posts/{created.Slug}", created);
 });
 
-app.MapPut("/api/posts/{id:int}", async (int id, BlogPostInput input, IBlogRepository blogRepository, IRiskAnalyzer riskAnalyzer) =>
+app.MapPut("/api/posts/{id:int}", async (
+    int id,
+    BlogPostInput input,
+    IBlogRepository blogRepository,
+    IRiskAnalyzer riskAnalyzer,
+    IBlockExplanationProvider blockExplanationProvider,
+    CancellationToken cancellationToken) =>
 {
     var validation = BlogPostValidator.Validate(input);
     if (validation.Count > 0)
@@ -103,9 +117,11 @@ app.MapPut("/api/posts/{id:int}", async (int id, BlogPostInput input, IBlogRepos
     var risk = riskAnalyzer.Analyze(input);
     if (!risk.CanPublish)
     {
+        var aiExplanation = await blockExplanationProvider.ExplainAsync(input, risk, cancellationToken);
         return Results.Json(new
         {
             message = "Post was not updated because scam risk was detected.",
+            aiExplanation,
             risk
         }, statusCode: StatusCodes.Status422UnprocessableEntity);
     }

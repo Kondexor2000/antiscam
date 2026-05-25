@@ -9,6 +9,7 @@ from antiscam.ai import (
     cosine_similarity,
     detect_emotion,
     explain_ai_assistance,
+    explain_sending_block,
     extract_named_entities,
     extract_terms,
     tokenize,
@@ -128,3 +129,17 @@ def test_explain_ai_assistance_says_safe_messages_are_not_blocked():
     assert report.scan_status == "LOW RISK"
     assert report.blocked_after_scan is False
     assert "not blocked" in report.block_explanation
+
+
+def test_explain_sending_block_mentions_ai_py_and_scan_reasons():
+    report = explain_sending_block(
+        "Wyslij BLIK 123456 natychmiast!",
+        "HIGH RISK",
+        91,
+        ["BLIK CONFIRMED: 123456", "Keyword score: 21"],
+    )
+
+    assert report.source == "antiscam.ai"
+    assert "ai.py" in report.explanation
+    assert "BLIK CONFIRMED: 123456" in report.explanation
+    assert "Nie podawaj kodu" in report.recommended_action

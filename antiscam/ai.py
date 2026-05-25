@@ -9,6 +9,9 @@ from __future__ import annotations
 
 import math
 import re
+import base64
+import json
+import sys
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from typing import Iterable
@@ -174,6 +177,13 @@ class AiAssistanceReport:
     what_ai_makes_easier: list[str]
 
 
+@dataclass(frozen=True)
+class SendingBlockExplanation:
+    source: str
+    explanation: str
+    recommended_action: str
+
+
 class AntiScamDialogBot:
     def respond(self, message: str) -> DialogResponse:
         text = message.lower()
@@ -259,6 +269,56 @@ def explain_scan_block(scan_status: str, risk_score: int, scan_reasons: list[str
     )
 
 
+def explain_sending_block(text: str, scan_status: str, risk_score: int, scan_reasons: list[str]) -> SendingBlockExplanation:
+    """Create the user-facing explanation used when sending/publishing is blocked."""
+
+    bot_response = AntiScamDialogBot().respond(text)
+    important_terms = extract_terms(text)[:4]
+    terms_text = ", ".join(important_terms) if important_terms else "brak wyraznych terminow"
+    reason_text = "; ".join(scan_reasons) if scan_reasons else "wynik ryzyka przekroczyl prog blokady"
+
+    if scan_status == "LOW RISK":
+        explanation = (
+            f"AI z ai.py nie blokuje wysylania: /scan ocenil tresc jako {scan_status} "
+            f"({risk_score}/100). Najwazniejsze terminy: {terms_text}."
+        )
+    else:
+        explanation = (
+            f"AI z ai.py wyjasnia blokade: /scan ocenil tresc jako {scan_status} "
+            f"({risk_score}/100), bo wykryto sygnaly oszustwa: {reason_text}. "
+            f"Najwazniejsze terminy z wiadomosci: {terms_text}."
+        )
+
+    return SendingBlockExplanation(
+        source="antiscam.ai",
+        explanation=explanation,
+        recommended_action=bot_response.message,
+    )
+
+
+def _run_block_explanation_bridge() -> None:
+    if len(sys.argv) > 1:
+        raw_payload = base64.b64decode(sys.argv[1]).decode("utf-8")
+        payload = json.loads(raw_payload)
+    else:
+        payload = json.load(sys.stdin)
+    report = explain_sending_block(
+        payload.get("text", ""),
+        payload.get("scan_status", "LOW RISK"),
+        int(payload.get("risk_score", 0)),
+        list(payload.get("scan_reasons", [])),
+    )
+    json.dump(
+        {
+            "source": report.source,
+            "explanation": report.explanation,
+            "recommended_action": report.recommended_action,
+        },
+        sys.stdout,
+        ensure_ascii=False,
+    )
+
+
 class KnowledgeGraph:
     def __init__(self) -> None:
         self._edges: dict[str, list[tuple[str, str]]] = defaultdict(list)
@@ -285,3 +345,7 @@ def cloud_deployment_profile() -> dict[str, str]:
         "faas": "Serverless scan endpoint for bursty message checks",
         "saas": "Hosted AntiScam dashboard consumed by end users",
     }
+
+
+if __name__ == "__main__":
+    _run_block_explanation_bridge()
