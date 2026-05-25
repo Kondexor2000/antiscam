@@ -207,6 +207,11 @@ class TestAiExplainEndpoint:
         data = response.json()
         assert data["intent"] == "report_scam"
         assert data["emotion"] == "anxiety"
+        assert data["scan_status"] == "HIGH RISK"
+        assert data["risk_score"] >= 80
+        assert data["blocked_after_scan"] is True
+        assert "blocked" in data["block_explanation"]
+        assert data["scan_reasons"]
         assert data["scam_similarity"] > 0
         assert "suggested_action" in data
         assert "Bank Polska" in data["named_entities"]

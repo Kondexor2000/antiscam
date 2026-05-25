@@ -112,6 +112,19 @@ def test_explain_ai_assistance_shows_practical_value():
 
     assert report.intent == "report_scam"
     assert report.emotion == "anxiety"
+    assert report.scan_status == "HIGH RISK"
+    assert report.risk_score >= 80
+    assert report.blocked_after_scan is True
+    assert "blocked" in report.block_explanation
+    assert report.scan_reasons
     assert report.scam_similarity > 0
     assert "Bank Polska" in report.named_entities
-    assert any("suggests" in item for item in report.what_ai_makes_easier)
+    assert any("blocked sending" in item for item in report.what_ai_makes_easier)
+
+
+def test_explain_ai_assistance_says_safe_messages_are_not_blocked():
+    report = explain_ai_assistance("Czesc, spotkamy sie normalnie o trzeciej.")
+
+    assert report.scan_status == "LOW RISK"
+    assert report.blocked_after_scan is False
+    assert "not blocked" in report.block_explanation

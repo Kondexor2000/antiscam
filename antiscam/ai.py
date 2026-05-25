@@ -13,6 +13,8 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 from typing import Iterable
 
+from .engine import calculate_risk
+
 
 TOKEN_PATTERN = re.compile(r"[a-zA-ZąćęłńóśźżĄĆĘŁŃÓŚŹŻ0-9]+")
 NAMED_ENTITY_PATTERN = re.compile(
@@ -161,6 +163,11 @@ class AiAssistanceReport:
     intent: str
     emotion: str
     suggested_action: str
+    scan_status: str
+    risk_score: int
+    blocked_after_scan: bool
+    block_explanation: str
+    scan_reasons: list[str]
     extracted_terms: list[str]
     named_entities: list[str]
     scam_similarity: float
@@ -206,15 +213,25 @@ def explain_ai_assistance(text: str) -> AiAssistanceReport:
     """Explain what the AI/NLP layer helps with for a single message."""
 
     bot_response = AntiScamDialogBot().respond(text)
+    scan_result = calculate_risk(text)
+    scan_status = scan_result["status"]
+    risk_score = scan_result["risk_score"]
+    scan_reasons = scan_result["reasons"]
+    blocked_after_scan = scan_status != "LOW RISK"
     scam_pattern = bag_of_words("pilny kod blik konto zablokowane kliknij link natychmiast")
     message_vector = bag_of_words(text)
     similarity = cosine_similarity(message_vector, scam_pattern)
 
     return AiAssistanceReport(
-        purpose="AI helps turn a raw message into an actionable safety decision.",
+        purpose="AI explains the scan decision so the user knows why sending was allowed or blocked.",
         intent=bot_response.intent,
         emotion=bot_response.emotion,
         suggested_action=bot_response.message,
+        scan_status=scan_status,
+        risk_score=risk_score,
+        blocked_after_scan=blocked_after_scan,
+        block_explanation=explain_scan_block(scan_status, risk_score, scan_reasons),
+        scan_reasons=scan_reasons,
         extracted_terms=extract_terms(text)[:8],
         named_entities=extract_named_entities(text),
         scam_similarity=round(similarity, 4),
@@ -223,8 +240,22 @@ def explain_ai_assistance(text: str) -> AiAssistanceReport:
             "detects emotional tone for calmer support",
             "extracts important terms and named entities",
             "compares the message with known scam-like wording",
-            "suggests a concrete next step instead of only returning a score",
+            "explains why the scan blocked sending instead of only returning a score",
         ],
+    )
+
+
+def explain_scan_block(scan_status: str, risk_score: int, scan_reasons: list[str]) -> str:
+    if scan_status == "LOW RISK":
+        return (
+            f"Sending was not blocked because /scan classified the message as {scan_status} "
+            f"with {risk_score}/100 risk."
+        )
+
+    reason_text = "; ".join(scan_reasons) if scan_reasons else "the risk score crossed the blocking threshold"
+    return (
+        f"Sending was blocked because /scan classified the message as {scan_status} "
+        f"with {risk_score}/100 risk. Signals: {reason_text}."
     )
 
 
