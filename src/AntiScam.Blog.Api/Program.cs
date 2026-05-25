@@ -27,7 +27,15 @@ builder.Services.AddSingleton<IBlogRepository, SqliteBlogRepository>();
 var app = builder.Build();
 
 app.UseDefaultFiles();
-app.UseStaticFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = context =>
+    {
+        context.Context.Response.Headers.CacheControl = "no-store, no-cache, must-revalidate";
+        context.Context.Response.Headers.Pragma = "no-cache";
+        context.Context.Response.Headers.Expires = "0";
+    }
+});
 
 var repository = app.Services.GetRequiredService<IBlogRepository>();
 await repository.InitializeAsync();
