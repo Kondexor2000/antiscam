@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using AntiScam.Blog.Api.Models;
 
 namespace AntiScam.Blog.Api.Tests.Integration;
@@ -64,6 +65,10 @@ public sealed class BlogApiTests : IClassFixture<BlogApiFactory>
         var response = await _client.PostAsJsonAsync("/api/posts", input);
 
         Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var risk = problem.RootElement.GetProperty("risk");
+        Assert.Contains("zablokowana", risk.GetProperty("blockExplanation").GetString());
+        Assert.Contains("BLIK CONFIRMED", risk.GetProperty("blockExplanation").GetString());
 
         var fetched = await _client.GetAsync("/api/posts/pilny-blik");
         Assert.Equal(HttpStatusCode.NotFound, fetched.StatusCode);

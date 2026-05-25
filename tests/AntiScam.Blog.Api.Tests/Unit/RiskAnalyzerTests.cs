@@ -35,6 +35,8 @@ public sealed class RiskAnalyzerTests
 
         Assert.Equal(RiskStatuses.HighRisk, risk.Status);
         Assert.False(risk.CanPublish);
+        Assert.Contains("zablokowana", risk.BlockExplanation);
+        Assert.Contains(RiskStatuses.HighRisk, risk.BlockExplanation);
         Assert.Contains(risk.Reasons, reason => reason.StartsWith("BLIK CONFIRMED"));
     }
 }
