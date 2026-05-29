@@ -78,6 +78,28 @@ public sealed class BlogApiTests : IClassFixture<BlogApiFactory>
     }
 
     [Fact]
+    public async Task CreatePost_BlocksObfuscatedBlikAndTyposquattingLinks()
+    {
+        var input = new BlogPostInput(
+            "n",
+            "n",
+            "B L I K 123456 k-o-d natychmiast https://g00gle.com/login",
+            "AntiScam Team");
+
+        var response = await _client.PostAsJsonAsync("/api/posts", input);
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var risk = problem.RootElement.GetProperty("risk");
+        var blockExplanation = risk.GetProperty("blockExplanation").GetString();
+        Assert.Contains("BLIK CONFIRMED", blockExplanation);
+        Assert.Contains("Typosquatting links", blockExplanation);
+
+        var fetched = await _client.GetAsync("/api/posts/n");
+        Assert.Equal(HttpStatusCode.NotFound, fetched.StatusCode);
+    }
+
+    [Fact]
     public async Task HomePage_ReturnsStaticHtml()
     {
         var html = await _client.GetStringAsync("/");

@@ -39,4 +39,40 @@ public sealed class RiskAnalyzerTests
         Assert.Contains(RiskStatuses.HighRisk, risk.BlockExplanation);
         Assert.Contains(risk.Reasons, reason => reason.StartsWith("BLIK CONFIRMED"));
     }
+
+    [Fact]
+    public void Analyze_BlocksObfuscatedBlikContext()
+    {
+        var analyzer = new RiskAnalyzer();
+        var input = new BlogPostInput(
+            "n",
+            "n",
+            "B L I K 123456 k-o-d natychmiast",
+            "AntiScam Team");
+
+        var risk = analyzer.Analyze(input);
+
+        Assert.Equal(RiskStatuses.HighRisk, risk.Status);
+        Assert.False(risk.CanPublish);
+        Assert.Contains(risk.Reasons, reason => reason.StartsWith("BLIK CONFIRMED"));
+    }
+
+    [Fact]
+    public void Analyze_BlocksTyposquattingAndPastedTrustedSubdomain()
+    {
+        var analyzer = new RiskAnalyzer();
+        var input = new BlogPostInput(
+            "n",
+            "n",
+            "Nie loguj sie przez https://google.com.evil.example ani https://g00gle.com/login",
+            "AntiScam Team");
+
+        var risk = analyzer.Analyze(input);
+
+        Assert.Equal(RiskStatuses.HighRisk, risk.Status);
+        Assert.False(risk.CanPublish);
+        Assert.Contains("https://google.com.evil.example", risk.RiskyLinks);
+        Assert.Contains("https://g00gle.com/login", risk.RiskyLinks);
+        Assert.Contains(risk.Reasons, reason => reason.StartsWith("Typosquatting links"));
+    }
 }

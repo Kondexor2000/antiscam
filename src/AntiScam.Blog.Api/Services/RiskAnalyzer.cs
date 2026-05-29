@@ -63,11 +63,12 @@ public sealed partial class RiskAnalyzer : IRiskAnalyzer
     public RiskAssessment Analyze(BlogPostInput input)
     {
         var text = $"{input.Title} {input.Summary} {input.Content} {input.Author}";
-        var textLow = text.ToLowerInvariant();
+        var normalizedText = DeobfuscateText(text);
+        var textLow = normalizedText.ToLowerInvariant();
         var riskScore = 0;
         var reasons = new List<string>();
 
-        var blikNumbers = BlikPattern().Matches(text)
+        var blikNumbers = BlikPattern().Matches(normalizedText)
             .Select(match => match.Value)
             .ToArray();
         if (blikNumbers.Length > 0)
@@ -84,6 +85,7 @@ public sealed partial class RiskAnalyzer : IRiskAnalyzer
             .ToArray();
         var safeLinks = new List<string>();
         var riskyLinks = new List<string>();
+        var typosquattingLinks = new List<string>();
 
         foreach (var link in links)
         {
@@ -95,6 +97,10 @@ public sealed partial class RiskAnalyzer : IRiskAnalyzer
             else
             {
                 riskyLinks.Add(link);
+                if (IsTyposquattingDomain(domain))
+                {
+                    typosquattingLinks.Add(link);
+                }
             }
         }
 
@@ -102,6 +108,12 @@ public sealed partial class RiskAnalyzer : IRiskAnalyzer
         {
             riskScore += Math.Min(45, 20 + riskyLinks.Count * 10);
             reasons.Add($"Risky links: {string.Join(", ", riskyLinks)}");
+        }
+
+        if (typosquattingLinks.Count > 0)
+        {
+            riskScore = Math.Max(riskScore + 80, 90);
+            reasons.Add($"Typosquatting links: {string.Join(", ", typosquattingLinks)}");
         }
 
         if (safeLinks.Count > 0)
@@ -143,14 +155,80 @@ public sealed partial class RiskAnalyzer : IRiskAnalyzer
 
     private static string ExtractDomain(string url)
     {
-        return Uri.TryCreate(url, UriKind.Absolute, out var parsed)
-            ? parsed.Host.ToLowerInvariant().Replace("www.", "")
-            : string.Empty;
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var parsed))
+        {
+            return string.Empty;
+        }
+
+        var labels = parsed.Host
+            .ToLowerInvariant()
+            .Split('.', StringSplitOptions.RemoveEmptyEntries);
+
+        if (labels.Length < 2)
+        {
+            return string.Empty;
+        }
+
+        return string.Join(".", labels[^2], labels[^1]);
     }
 
     private static bool IsTrustedDomain(string domain)
     {
-        return TrustedDomains.Any(trusted => domain == trusted || domain.EndsWith($".{trusted}", StringComparison.OrdinalIgnoreCase));
+        return TrustedDomains.Contains(domain);
+    }
+
+    private static bool IsTyposquattingDomain(string domain)
+    {
+        return !string.IsNullOrWhiteSpace(domain)
+            && !IsTrustedDomain(domain)
+            && TrustedDomains.Any(trusted => LevenshteinDistance(domain, trusted) <= 2);
+    }
+
+    private static int LevenshteinDistance(string left, string right)
+    {
+        if (left == right)
+        {
+            return 0;
+        }
+
+        if (left.Length == 0)
+        {
+            return right.Length;
+        }
+
+        if (right.Length == 0)
+        {
+            return left.Length;
+        }
+
+        var previous = Enumerable.Range(0, right.Length + 1).ToArray();
+
+        for (var leftIndex = 1; leftIndex <= left.Length; leftIndex++)
+        {
+            var current = new int[right.Length + 1];
+            current[0] = leftIndex;
+
+            for (var rightIndex = 1; rightIndex <= right.Length; rightIndex++)
+            {
+                var substitutionCost = left[leftIndex - 1] == right[rightIndex - 1] ? 0 : 1;
+                current[rightIndex] = Math.Min(
+                    Math.Min(previous[rightIndex] + 1, current[rightIndex - 1] + 1),
+                    previous[rightIndex - 1] + substitutionCost);
+            }
+
+            previous = current;
+        }
+
+        return previous[^1];
+    }
+
+    private static string DeobfuscateText(string text)
+    {
+        var normalized = SingleLetterChainPattern().Replace(text, match =>
+            string.Concat(match.Value.Where(char.IsLetter)));
+        normalized = InWordSpecialPattern().Replace(normalized, string.Empty);
+        normalized = WhitespacePattern().Replace(normalized, " ");
+        return normalized.Trim();
     }
 
     private static bool ContainsAny(string text, IEnumerable<string> values)
@@ -177,4 +255,13 @@ public sealed partial class RiskAnalyzer : IRiskAnalyzer
 
     [GeneratedRegex(@"https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+[^\s]*")]
     private static partial Regex UrlPattern();
+
+    [GeneratedRegex(@"(?i)(?<!\w)(?:[a-z]\W+){2,}[a-z](?!\w)")]
+    private static partial Regex SingleLetterChainPattern();
+
+    [GeneratedRegex(@"(?<=[^\W_])(?:[^\w\s]|_)+(?=[^\W_])")]
+    private static partial Regex InWordSpecialPattern();
+
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex WhitespacePattern();
 }
