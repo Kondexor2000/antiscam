@@ -50,6 +50,16 @@ class TestScanEndpoint:
         data = response.json()
         assert data["status"] == "HIGH RISK"
 
+    def test_scan_deobfuscates_blik_message(self, client):
+        """Test scan endpoint normalizes obfuscated BLIK wording."""
+        response = client.post(
+            "/scan",
+            json={"text": "В L Ι К 123456 k o d natychmiast"}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "HIGH RISK"
+
     def test_scan_response_structure(self, client):
         """Test response has required fields."""
         response = client.post(

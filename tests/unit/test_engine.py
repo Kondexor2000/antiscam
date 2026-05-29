@@ -55,6 +55,20 @@ class TestCalculateRisk:
         assert result["status"] == "HIGH RISK"
         assert result["risk_score"] >= 80
 
+    def test_calculate_risk_deobfuscates_spaced_blik(self):
+        """Test de-obfuscation before risk scoring."""
+        text = "Wyślij b l i k 123456 k o d natychmiast"
+        result = calculate_risk(text)
+        assert result["status"] == "HIGH RISK"
+        assert result["risk_score"] >= 80
+
+    def test_calculate_risk_deobfuscates_homoglyph_blik(self):
+        """Test homoglyph mapping before risk scoring."""
+        text = "Wyślij ВLΙК 123456 kod natychmiast"
+        result = calculate_risk(text)
+        assert result["status"] == "HIGH RISK"
+        assert result["risk_score"] >= 80
+
     def test_calculate_risk_medium_risk_keywords(self):
         """Test risky keywords increase score."""
         text = "Potwierdź dane szybko pilnie"

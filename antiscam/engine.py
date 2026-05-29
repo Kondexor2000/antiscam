@@ -3,6 +3,7 @@ from typing import Dict
 from .logger import get_logger
 from .config import settings
 from .links import analyze_links
+from .normalization import deobfuscate_text
 from .scoring import score_keywords, score_safe_context, score_intent, score_blik
 
 logger = get_logger()
@@ -18,10 +19,11 @@ def calculate_risk(text: str) -> Dict:
     risk_score = 0
     reasons = []
 
-    text_low = text.lower()
+    normalized_text = deobfuscate_text(text)
+    text_low = normalized_text.lower()
 
     # BLIK
-    numbers = detect_blik(text)
+    numbers = detect_blik(normalized_text)
     s, r = score_blik(numbers, text_low)
     risk_score += s
     if r:
