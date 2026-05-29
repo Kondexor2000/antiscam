@@ -106,7 +106,34 @@ Invoke-WebRequest -Uri http://localhost:8000/scan `
 Oczekiwany wynik: `HIGH RISK`. Model ML nadaje bazowy wynik intencji, a reguly BLIK,
 podejrzanego linku i typosquattingu dzialaja jako twarde modyfikatory wyniku.
 
-## Demo 6: Python AI explain
+## Demo 6: Normalizacja obfuskacji
+
+```powershell
+Invoke-WebRequest -Uri http://localhost:8000/scan `
+  -Method POST `
+  -ContentType "application/json" `
+  -UseBasicParsing `
+  -Body '{"text":"B L I K 123456 k-o-d natychmiast"}'
+```
+
+Oczekiwany wynik: `HIGH RISK`. `normalization.py` laczy rozstrzelone litery,
+usuwa proste znaki wstawione w slowa i przekazuje oczyszczony tekst do `engine.py`.
+
+## Demo 7: Bezpieczne wycinanie domen i literowki
+
+```powershell
+Invoke-WebRequest -Uri http://localhost:8000/scan `
+  -Method POST `
+  -ContentType "application/json" `
+  -UseBasicParsing `
+  -Body '{"text":"Nie loguj sie przez https://google.com.evil.example ani https://g00gle.com/login"}'
+```
+
+Oczekiwany wynik: `HIGH RISK`. `links.py` uzywa `tldextract`, wiec
+`google.com.evil.example` nie jest traktowane jak zaufane `google.com`, a
+`g00gle.com` trafia do `Typosquatting links` dzieki odleglosci Levenshteina.
+
+## Demo 8: Python AI explain
 
 ```powershell
 Invoke-WebRequest -Uri http://localhost:8000/ai/explain `
