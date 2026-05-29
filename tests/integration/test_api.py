@@ -120,6 +120,17 @@ class TestScanEndpoint:
         data = response.json()
         assert len(data["risky_links"]) > 0
 
+    def test_scan_typosquatting_link_is_high_risk(self, client):
+        """Test scan endpoint flags edit-distance domain spoofing."""
+        response = client.post(
+            "/scan",
+            json={"text": "Pilnie kliknij https://g00gle.com/login"}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "HIGH RISK"
+        assert any("Typosquatting links" in reason for reason in data["reasons"])
+
     def test_scan_with_blik_code(self, client):
         """Test scanning message with BLIK code."""
         response = client.post(

@@ -2,7 +2,7 @@ import re
 from typing import Dict
 from .logger import get_logger
 from .config import settings
-from .links import analyze_links
+from .links import analyze_links_detailed
 from .normalization import deobfuscate_text
 from .scoring import score_keywords, score_safe_context, score_intent, score_blik
 
@@ -30,11 +30,17 @@ def calculate_risk(text: str) -> Dict:
         reasons.append(r)
 
     # LINKS
-    safe_links, risky_links = analyze_links(text)
+    link_analysis = analyze_links_detailed(text)
+    safe_links = link_analysis.safe_links
+    risky_links = link_analysis.risky_links
 
     if risky_links:
         risk_score += min(45, 20 + len(risky_links) * 10)
         reasons.append(f"Risky links: {risky_links}")
+
+    if link_analysis.typosquatting_links:
+        risk_score += 80
+        reasons.append(f"Typosquatting links: {link_analysis.typosquatting_links}")
 
     if safe_links:
         risk_score -= min(15, len(safe_links) * 5)

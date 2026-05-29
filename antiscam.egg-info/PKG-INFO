@@ -5,4 +5,5 @@ Summary: Anti-scam detection engine
 Requires-Python: >=3.10
 Requires-Dist: fastapi
 Requires-Dist: pydantic
+Requires-Dist: tldextract
 Requires-Dist: uvicorn

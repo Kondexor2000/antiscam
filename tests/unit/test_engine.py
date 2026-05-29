@@ -120,6 +120,12 @@ class TestCalculateRisk:
         result2 = calculate_risk(text2)
         assert result2["risk_score"] >= result1["risk_score"]
 
+    def test_calculate_risk_typosquatting_link_is_high_risk(self):
+        """Test close lookalike of trusted domain is high risk."""
+        result = calculate_risk("Kliknij https://g00gle.com/login")
+        assert result["status"] == "HIGH RISK"
+        assert any("Typosquatting links" in reason for reason in result["reasons"])
+
     def test_calculate_risk_status_classifications(self):
         """Test risk classifications."""
         low_text = "Cześć spotkanie ok"
