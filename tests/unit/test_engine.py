@@ -120,6 +120,12 @@ class TestCalculateRisk:
         result2 = calculate_risk(text2)
         assert result2["risk_score"] >= result1["risk_score"]
 
+    def test_calculate_risk_includes_ml_baseline(self):
+        """Test hybrid pipeline starts with the shallow ML model."""
+        result = calculate_risk("konto zablokowane kliknij link i potwierdz dane")
+        assert any("ML intent score" in reason for reason in result["reasons"])
+        assert result["risk_score"] > 0
+
     def test_calculate_risk_typosquatting_link_is_high_risk(self):
         """Test close lookalike of trusted domain is high risk."""
         result = calculate_risk("Kliknij https://g00gle.com/login")

@@ -3,6 +3,7 @@ from typing import Dict
 from .logger import get_logger
 from .config import settings
 from .links import analyze_links_detailed
+from .ml import classify_message
 from .normalization import deobfuscate_text
 from .scoring import score_keywords, score_safe_context, score_intent, score_blik
 
@@ -16,17 +17,26 @@ def detect_blik(text: str) -> list[str]:
 def calculate_risk(text: str) -> Dict:
     logger.info("scan_started")
 
-    risk_score = 0
+    risk_score = 0.0
     reasons = []
 
     normalized_text = deobfuscate_text(text)
     text_low = normalized_text.lower()
 
+    # ML BASELINE
+    ml_assessment = classify_message(text_low)
+    risk_score = float(ml_assessment.score)
+    reasons.append(
+        f"ML intent score: {ml_assessment.score} "
+        f"({ml_assessment.label}, p={ml_assessment.scam_probability:.2f})"
+    )
+
     # BLIK
     numbers = detect_blik(normalized_text)
     s, r = score_blik(numbers, text_low)
-    risk_score += s
     if r:
+        risk_score *= 1.6 if s >= 60 else 1.25
+        risk_score = max(risk_score, s)
         reasons.append(r)
 
     # LINKS
@@ -35,20 +45,22 @@ def calculate_risk(text: str) -> Dict:
     risky_links = link_analysis.risky_links
 
     if risky_links:
-        risk_score += min(45, 20 + len(risky_links) * 10)
+        risk_score *= 1.3
+        risk_score += min(20, len(risky_links) * 5)
         reasons.append(f"Risky links: {risky_links}")
 
     if link_analysis.typosquatting_links:
-        risk_score += 80
+        risk_score *= 2
+        risk_score = max(risk_score, 90)
         reasons.append(f"Typosquatting links: {link_analysis.typosquatting_links}")
 
     if safe_links:
-        risk_score -= min(15, len(safe_links) * 5)
+        risk_score *= 0.85
         reasons.append(f"Trusted links: {safe_links}")
 
     # KEYWORDS
     kw_score, kw_reason = score_keywords(text_low)
-    risk_score += kw_score
+    risk_score += kw_score * 0.5
     if kw_reason:
         reasons.append(kw_reason)
 
@@ -60,7 +72,7 @@ def calculate_risk(text: str) -> Dict:
 
     # INTENT
     intent_score, intent_reason = score_intent(text_low)
-    risk_score += intent_score
+    risk_score += intent_score * 0.5
     if intent_reason:
         reasons.append(intent_reason)
 

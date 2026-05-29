@@ -12,6 +12,7 @@ public sealed partial class RiskAnalyzer : IRiskAnalyzer
         "messenger.com",
         "microsoft.com",
         "apple.com",
+        "amazon.com",
         "paypal.com",
         "chatgpt.com"
     };

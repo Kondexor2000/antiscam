@@ -20,6 +20,7 @@ class TestSettings:
             "messenger.com",
             "microsoft.com",
             "apple.com",
+            "amazon.com",
             "paypal.com",
             "chatgpt.com"
         }

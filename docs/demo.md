@@ -90,9 +90,23 @@ Invoke-WebRequest -Uri http://localhost:8000/scan `
   -Body '{"text":"Wyslij BLIK 123456 natychmiast"}'
 ```
 
-Oczekiwany wynik: wysoki wynik ryzyka.
+Oczekiwany wynik: wysoki wynik ryzyka. W polu `reasons` widoczny jest tez bazowy wynik
+`ML intent score`, wyliczony przez hybrydowy pipeline TF-IDF + Naive Bayes.
 
-## Demo 5: Python AI explain
+## Demo 5: Hybryda ML + twarde reguly
+
+```powershell
+Invoke-WebRequest -Uri http://localhost:8000/scan `
+  -Method POST `
+  -ContentType "application/json" `
+  -UseBasicParsing `
+  -Body '{"text":"Konto zablokowane, kliknij https://g00gle.com/login i potwierdz kod BLIK 123456 natychmiast"}'
+```
+
+Oczekiwany wynik: `HIGH RISK`. Model ML nadaje bazowy wynik intencji, a reguly BLIK,
+podejrzanego linku i typosquattingu dzialaja jako twarde modyfikatory wyniku.
+
+## Demo 6: Python AI explain
 
 ```powershell
 Invoke-WebRequest -Uri http://localhost:8000/ai/explain `
