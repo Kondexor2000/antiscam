@@ -8,5 +8,6 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.11" />
+    <PackageReference Include="Nager.PublicSuffix" Version="3.8.0" />
   </ItemGroup>
 </Project>

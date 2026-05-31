@@ -1,5 +1,7 @@
 __pycache__
 .pytest_cache
+.pdf_strings
+.pdf_texts
 .coverage
 bin/
 obj/
@@ -11,3 +13,4 @@ tools/
 AI_antiscam/
 pdf_strings/
 pdf_texts/
+models

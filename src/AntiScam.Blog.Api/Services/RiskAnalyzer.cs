@@ -1,10 +1,19 @@
 using System.Text.RegularExpressions;
 using AntiScam.Blog.Api.Models;
+using Nager.PublicSuffix;
+using Nager.PublicSuffix.RuleProviders;
 
 namespace AntiScam.Blog.Api.Services;
 
 public sealed partial class RiskAnalyzer : IRiskAnalyzer
 {
+    
+    private static readonly IRuleProvider RuleProvider =
+        new LocalFileRuleProvider("public_suffix_list.dat");
+
+    private static readonly DomainParser DomainParser =
+        new(RuleProvider);
+
     private static readonly HashSet<string> TrustedDomains = new(StringComparer.OrdinalIgnoreCase)
     {
         "google.com",
@@ -160,16 +169,26 @@ public sealed partial class RiskAnalyzer : IRiskAnalyzer
             return string.Empty;
         }
 
-        var labels = parsed.Host
-            .ToLowerInvariant()
-            .Split('.', StringSplitOptions.RemoveEmptyEntries);
-
-        if (labels.Length < 2)
+        try
         {
-            return string.Empty;
-        }
+            var domainInfo = DomainParser.Parse(parsed.Host);
 
-        return string.Join(".", labels[^2], labels[^1]);
+            return domainInfo.RegistrableDomain?
+                .ToLowerInvariant()
+                ?? FallbackRegisteredDomain(parsed.Host);
+        }
+        catch
+        {
+            return FallbackRegisteredDomain(parsed.Host);
+        }
+    }
+
+    private static string FallbackRegisteredDomain(string host)
+    {
+        var labels = host.Split('.', StringSplitOptions.RemoveEmptyEntries);
+        return labels.Length < 2
+            ? string.Empty
+            : string.Join('.', labels[^2..]).ToLowerInvariant();
     }
 
     private static bool IsTrustedDomain(string domain)
