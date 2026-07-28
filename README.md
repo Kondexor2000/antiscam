@@ -34,10 +34,20 @@ Strona ładuje wpisy z API i pozwala dodać nowy wpis blogowy.
 
 Przed publikacją C# WebAPI analizuje tytuł, streszczenie, treść i autora. Wpis zostanie zapisany tylko przy statusie `LOW RISK`; dla `MEDIUM RISK` lub `HIGH RISK` API zwraca `422 Unprocessable Entity` i nie zapisuje wpisu w SQLite.
 
+### Opcjonalna baza NoSQL (MongoDB)
+
+SQLite nadal jest domyślną bazą wpisów bloga. Opcjonalna baza MongoDB przechowuje jedynie zgłoszenia odrzucone przez analizę ryzyka, więc nie zmienia działania istniejącego magazynu SQLite.
+
+MongoDB jest włączony przez `NoSql:Enabled`. Adres serwera można podać w `NoSql:ConnectionString` albo przez zmienną środowiskową `ANTISCAM_MONGO_CONNECTION_STRING`. Domyślna baza i kolekcja to `antiscam` oraz `blocked-submissions`. Bieżącą konfigurację obu magazynów zwraca `GET /api/storage`.
+
+Odrzucone zgłoszenia można odczytać przez `GET /api/incidents?limit=50`. Po włączeniu MongoDB endpoint zwraca wpisy z kolekcji `blocked-submissions`, od najnowszych. Przy wyłączonej lub niedostępnej bazie odpowiedzią jest pusta lista.
+
 ### Endpointy bloga
 
 ```text
 GET    /api/health
+GET    /api/storage
+GET    /api/incidents?limit=50
 GET    /api/workspace
 GET    /api/posts
 GET    /api/posts/{slug}

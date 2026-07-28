@@ -18,11 +18,26 @@ var databasePath = !string.IsNullOrWhiteSpace(environmentDatabasePath)
         ? configuredDatabasePath
         : Path.Combine(workspacePath, "data", "antiscam-blog.sqlite");
 
+var noSqlOptions = builder.Configuration.GetSection("NoSql").Get<NoSqlDatabaseOptions>()
+    ?? new NoSqlDatabaseOptions();
+var mongoConnectionString = Environment.GetEnvironmentVariable("ANTISCAM_MONGO_CONNECTION_STRING");
+if (!string.IsNullOrWhiteSpace(mongoConnectionString))
+{
+    noSqlOptions = noSqlOptions with { ConnectionString = mongoConnectionString };
+}
+
 builder.Services.AddSingleton(new WorkspaceOptions(workspacePath));
 builder.Services.AddSingleton(new BlogDatabaseOptions(databasePath));
+builder.Services.AddSingleton(noSqlOptions);
 builder.Services.AddSingleton<ISlugGenerator, SlugGenerator>();
 builder.Services.AddSingleton<IRiskAnalyzer, RiskAnalyzer>();
 builder.Services.AddSingleton<IBlockExplanationProvider, PythonAiBlockExplanationProvider>();
+builder.Services.AddSingleton<IScamIncidentStore>(serviceProvider =>
+    noSqlOptions.Enabled
+        ? new MongoScamIncidentStore(
+            noSqlOptions,
+            serviceProvider.GetRequiredService<ILogger<MongoScamIncidentStore>>())
+        : new NullScamIncidentStore());
 builder.Services.AddSingleton<IBlogRepository, SqliteBlogRepository>();
 
 var app = builder.Build();
@@ -45,8 +60,28 @@ app.MapGet("/api/health", () => Results.Ok(new
 {
     status = "ok",
     application = "AntiScam Blog API",
-    storage = "SQLite"
+    storage = "SQLite",
+    secondaryStorage = noSqlOptions.Enabled ? "MongoDB" : "disabled"
 }));
+
+app.MapGet("/api/storage", (BlogDatabaseOptions sqlite, NoSqlDatabaseOptions mongo) => Results.Ok(new
+{
+    primary = new { provider = "SQLite", path = sqlite.DatabasePath },
+    secondary = new
+    {
+        provider = "MongoDB",
+        enabled = mongo.Enabled,
+        database = mongo.DatabaseName,
+        collection = mongo.CollectionName
+    }
+}));
+
+app.MapGet("/api/incidents", async (int? limit, IScamIncidentStore incidentStore, CancellationToken cancellationToken) =>
+{
+    var safeLimit = Math.Clamp(limit ?? 50, 1, 100);
+    var incidents = await incidentStore.GetRecentAsync(safeLimit, cancellationToken);
+    return Results.Ok(incidents);
+});
 
 app.MapGet("/api/workspace", (WorkspaceOptions options, BlogDatabaseOptions database) =>
 {
@@ -76,6 +111,7 @@ app.MapPost("/api/posts", async (
     IBlogRepository blogRepository,
     IRiskAnalyzer riskAnalyzer,
     IBlockExplanationProvider blockExplanationProvider,
+    IScamIncidentStore scamIncidentStore,
     CancellationToken cancellationToken) =>
 {
     var validation = BlogPostValidator.Validate(input);
@@ -88,6 +124,7 @@ app.MapPost("/api/posts", async (
     if (!risk.CanPublish)
     {
         var aiExplanation = await blockExplanationProvider.ExplainAsync(input, risk, cancellationToken);
+        await scamIncidentStore.RecordAsync(input, risk, cancellationToken);
         return Results.Json(new
         {
             message = "Post was not published because scam risk was detected.",
