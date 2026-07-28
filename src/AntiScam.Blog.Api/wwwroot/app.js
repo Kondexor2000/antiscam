@@ -12,8 +12,8 @@ async function loadWorkspace() {
 }
 
 async function loadPosts() {
-  const response = await fetch("/api/posts");
-  const posts = await response.json();
+  const response = await fetch("/api/posts/latest");
+  const posts = [await response.json()];
 
   postsElement.innerHTML = "";
   for (const post of posts) {

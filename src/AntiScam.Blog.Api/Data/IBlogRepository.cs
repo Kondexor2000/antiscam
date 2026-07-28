@@ -8,6 +8,8 @@ public interface IBlogRepository
 
     Task<IReadOnlyList<BlogPost>> GetAllAsync(CancellationToken cancellationToken = default);
 
+    Task<BlogPost?> GetLatestAsync(CancellationToken cancellationToken = default);
+
     Task<BlogPost?> GetBySlugAsync(string slug, CancellationToken cancellationToken = default);
 
     Task<BlogPost> CreateAsync(BlogPostInput input, CancellationToken cancellationToken = default);

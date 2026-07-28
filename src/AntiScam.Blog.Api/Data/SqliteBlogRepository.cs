@@ -59,6 +59,23 @@ public sealed class SqliteBlogRepository(BlogDatabaseOptions options, ISlugGener
         return posts;
     }
 
+    public async Task<BlogPost?> GetLatestAsync(CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT Id, Title, Slug, Summary, Content, Author, PublishedAt, UpdatedAt
+            FROM Posts
+            ORDER BY PublishedAt DESC, Id DESC
+            LIMIT 1;
+            """;
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        return await reader.ReadAsync(cancellationToken) ? ReadPost(reader) : null;
+    }
+
     public async Task<BlogPost?> GetBySlugAsync(string slug, CancellationToken cancellationToken = default)
     {
         await using var connection = CreateConnection();

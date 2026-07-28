@@ -100,6 +100,12 @@ app.MapGet("/api/posts", async (IBlogRepository blogRepository) =>
     return Results.Ok(posts);
 });
 
+app.MapGet("/api/posts/latest", async (IBlogRepository blogRepository) =>
+{
+    var post = await blogRepository.GetLatestAsync();
+    return post is null ? Results.NotFound() : Results.Ok(post);
+});
+
 app.MapGet("/api/posts/{slug}", async (string slug, IBlogRepository blogRepository) =>
 {
     var post = await blogRepository.GetBySlugAsync(slug);

@@ -24,6 +24,17 @@ public sealed class BlogApiTests : IClassFixture<BlogApiFactory>
     }
 
     [Fact]
+    public async Task GetLatestPost_ReturnsOnlyTheMostRecentlyPublishedPost()
+    {
+        var allPosts = await _client.GetFromJsonAsync<List<BlogPost>>("/api/posts");
+        var latestPost = await _client.GetFromJsonAsync<BlogPost>("/api/posts/latest");
+
+        Assert.NotNull(allPosts);
+        Assert.NotNull(latestPost);
+        Assert.Equal(allPosts[0].Id, latestPost.Id);
+    }
+
+    [Fact]
     public async Task Storage_LeavesSqliteAsPrimaryAndEnablesMongoIncidentStore()
     {
         using var response = await _client.GetAsync("/api/storage");
