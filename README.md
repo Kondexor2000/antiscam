@@ -172,6 +172,40 @@ Do testów lub lokalnych eksperymentów można nadpisać ścieżkę bazy zmienn�
 $env:ANTISCAM_BLOG_DB="C:\temp\antiscam-blog.sqlite"
 ```
 
+### Konta, administracja i bezpieczne kopie
+
+`POST /api/auth/register` rejestruje użytkownika (`userName`, `password`); pierwsze konto otrzymuje rolę `Admin`, kolejne rolę `User`. Logowanie przez `POST /api/auth/login` zwraca token Bearer. Hasła są zapisywane wyłącznie jako PBKDF2-HMAC-SHA256.
+
+Administrator przekazuje token w nagłówku `Authorization: Bearer <token>` i może:
+
+- zablokować konto: `POST /api/admin/users/{id}/block`;
+- zobaczyć także nieaktywne wpisy: `GET /api/admin/posts`;
+- ukryć wpis (miękkie usunięcie): `POST /api/admin/posts/{id}/deactivate` lub `DELETE /api/posts/{id}`;
+- przywrócić wpis: `POST /api/admin/posts/{id}/restore`.
+
+Przy logowaniu z adresu IP innego niż przy poprzedniej sesji aplikacja automatycznie tworzy szyfrowaną kopię bazy, jeśli jej zawartość uległa zmianie. Ustaw sekret poza repozytorium:
+
+```powershell
+$env:ANTISCAM_BACKUP_KEY = "własny-długi-losowy-sekret"
+```
+
+Kopia i metadane są zapisywane w `secure_backups/backup.enc.json` oraz `secure_backups/backup_meta.json`. Używane jest AES-GCM-256 z losowym nonce i znacznikiem integralności; źródłowa baza nie jest zapisywana w formie jawnej. Bez klucza backup jest celowo pomijany i zapisywany jest wpis ostrzegawczy w logu.
+
+Backup wykonuje spójny snapshot SQLite przez mechanizm `BackupDatabase`, więc obejmuje wszystkie tabele (wpisy, komentarze, użytkowników i sesje), a nie tylko plik głównej bazy. Jeśli `ANTISCAM_BACKUP_KEY` nie jest ustawione, aplikacja jednorazowo tworzy lokalny sekret w `data/antiscam-backup.key`; plik oraz katalog z kopiami są wykluczone z Gita.
+
+### HTTPS w sieci lokalnej (OpenSSL)
+
+Skrypt `tools/generate-https-certificate.ps1` tworzy lokalne CA oraz certyfikat PFX z prywatnym adresem IP w SAN, analogicznie do projektu referencyjnego. Po zainstalowaniu OpenSSL uruchom:
+
+```powershell
+$env:ANTISCAM_HTTPS_CERT_PASSWORD = "silne-lokalne-haslo"
+.\tools\generate-https-certificate.ps1 -PrivateIp "192.168.1.22"
+```
+
+Następnie ustaw `Https:Enabled` na `true` i uruchom aplikację. Kestrel będzie nasłuchiwał na `0.0.0.0:5001`, a aplikacja będzie dostępna z LAN jako `https://192.168.1.22:5001`. Aby usunąć ostrzeżenie przeglądarki na urządzeniach w sieci, zaufaj plikowi `certs/antiscam-ca.crt`.
+
+Bez certyfikatu zwykłe `dotnet run --project .\src\AntiScam.Blog.Api` nasłuchuje na wszystkich interfejsach na porcie 5000. Dla komputera z adresem `192.168.1.22` użyj wtedy `http://192.168.1.22:5000` z urządzenia w tej samej sieci. Jeśli połączenie z innego urządzenia zostanie zablokowane, zezwól aplikacji .NET na ruch przychodzący w Zaporze Windows dla sieci prywatnych.
+
 ## GitHub
 
 Repozytorium jest skonfigurowane z origin:

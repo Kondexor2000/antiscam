@@ -28,26 +28,72 @@ public sealed class SqliteBlogRepository(BlogDatabaseOptions options, ISlugGener
                     Content TEXT NOT NULL,
                     Author TEXT NOT NULL,
                     PublishedAt TEXT NOT NULL,
-                    UpdatedAt TEXT NOT NULL
+                    UpdatedAt TEXT NOT NULL,
+                    IsActive INTEGER NOT NULL DEFAULT 1
                 );
+
+                CREATE TABLE IF NOT EXISTS Comments (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    PostId INTEGER NOT NULL,
+                    Content TEXT NOT NULL,
+                    Author TEXT NOT NULL,
+                    PublishedAt TEXT NOT NULL,
+                    FOREIGN KEY (PostId) REFERENCES Posts(Id) ON DELETE CASCADE
+                );
+
+                CREATE INDEX IF NOT EXISTS IX_Comments_PostId_PublishedAt
+                ON Comments (PostId, PublishedAt, Id);
+
+                CREATE TABLE IF NOT EXISTS Users (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    UserName TEXT NOT NULL COLLATE NOCASE UNIQUE,
+                    PasswordAlgorithm TEXT NOT NULL,
+                    PasswordIterations INTEGER NOT NULL,
+                    PasswordSalt TEXT NOT NULL,
+                    PasswordHash TEXT NOT NULL,
+                    Role TEXT NOT NULL,
+                    IsBlocked INTEGER NOT NULL DEFAULT 0,
+                    CreatedAt TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS UserSessions (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    UserId INTEGER NOT NULL,
+                    TokenHash TEXT NOT NULL UNIQUE,
+                    RemoteIp TEXT NOT NULL,
+                    CreatedAt TEXT NOT NULL,
+                    FOREIGN KEY (UserId) REFERENCES Users(Id) ON DELETE CASCADE
+                );
+
+                CREATE INDEX IF NOT EXISTS IX_UserSessions_UserId_RemoteIp
+                ON UserSessions (UserId, RemoteIp);
                 """;
             await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await using (var migration = connection.CreateCommand())
+        {
+            migration.CommandText = "ALTER TABLE Posts ADD COLUMN IsActive INTEGER NOT NULL DEFAULT 1;";
+            try { await migration.ExecuteNonQueryAsync(cancellationToken); }
+            catch (SqliteException exception) when (exception.SqliteErrorCode == 1 && exception.Message.Contains("duplicate column name", StringComparison.OrdinalIgnoreCase)) { }
         }
 
         await SeedAsync(connection, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<BlogPost>> GetAllAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<BlogPost>> GetAllAsync(bool includeInactive = false, CancellationToken cancellationToken = default)
     {
         await using var connection = CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
         await using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT Id, Title, Slug, Summary, Content, Author, PublishedAt, UpdatedAt
+            SELECT Id, Title, Slug, Summary, Content, Author, PublishedAt, UpdatedAt, IsActive
             FROM Posts
+            WHERE IsActive = 1 OR $includeInactive = 1
             ORDER BY PublishedAt DESC, Id DESC;
             """;
+        command.Parameters.AddWithValue("$includeInactive", includeInactive ? 1 : 0);
 
         var posts = new List<BlogPost>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -66,8 +112,9 @@ public sealed class SqliteBlogRepository(BlogDatabaseOptions options, ISlugGener
 
         await using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT Id, Title, Slug, Summary, Content, Author, PublishedAt, UpdatedAt
+            SELECT Id, Title, Slug, Summary, Content, Author, PublishedAt, UpdatedAt, IsActive
             FROM Posts
+            WHERE IsActive = 1
             ORDER BY PublishedAt DESC, Id DESC
             LIMIT 1;
             """;
@@ -83,14 +130,38 @@ public sealed class SqliteBlogRepository(BlogDatabaseOptions options, ISlugGener
 
         await using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT Id, Title, Slug, Summary, Content, Author, PublishedAt, UpdatedAt
+            SELECT Id, Title, Slug, Summary, Content, Author, PublishedAt, UpdatedAt, IsActive
             FROM Posts
-            WHERE Slug = $slug;
+            WHERE Slug = $slug AND IsActive = 1;
             """;
         command.Parameters.AddWithValue("$slug", slug);
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         return await reader.ReadAsync(cancellationToken) ? ReadPost(reader) : null;
+    }
+
+    public async Task<IReadOnlyList<BlogComment>> GetCommentsAsync(int postId, CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT Id, PostId, Content, Author, PublishedAt
+            FROM Comments
+            WHERE PostId = $postId
+            ORDER BY PublishedAt ASC, Id ASC;
+            """;
+        command.Parameters.AddWithValue("$postId", postId);
+
+        var comments = new List<BlogComment>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            comments.Add(ReadComment(reader));
+        }
+
+        return comments;
     }
 
     public async Task<BlogPost> CreateAsync(BlogPostInput input, CancellationToken cancellationToken = default)
@@ -103,9 +174,9 @@ public sealed class SqliteBlogRepository(BlogDatabaseOptions options, ISlugGener
 
         await using var command = connection.CreateCommand();
         command.CommandText = """
-            INSERT INTO Posts (Title, Slug, Summary, Content, Author, PublishedAt, UpdatedAt)
-            VALUES ($title, $slug, $summary, $content, $author, $publishedAt, $updatedAt)
-            RETURNING Id, Title, Slug, Summary, Content, Author, PublishedAt, UpdatedAt;
+            INSERT INTO Posts (Title, Slug, Summary, Content, Author, PublishedAt, UpdatedAt, IsActive)
+            VALUES ($title, $slug, $summary, $content, $author, $publishedAt, $updatedAt, 1)
+            RETURNING Id, Title, Slug, Summary, Content, Author, PublishedAt, UpdatedAt, IsActive;
             """;
         AddPostParameters(command, input, slug, now, now);
 
@@ -116,6 +187,32 @@ public sealed class SqliteBlogRepository(BlogDatabaseOptions options, ISlugGener
         }
 
         return ReadPost(reader);
+    }
+
+    public async Task<BlogComment?> CreateCommentAsync(int postId, BlogCommentInput input, CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        if (!await ExistsAsync(connection, postId, cancellationToken))
+        {
+            return null;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            INSERT INTO Comments (PostId, Content, Author, PublishedAt)
+            VALUES ($postId, $content, $author, $publishedAt)
+            RETURNING Id, PostId, Content, Author, PublishedAt;
+            """;
+        command.Parameters.AddWithValue("$postId", postId);
+        command.Parameters.AddWithValue("$content", input.Content.Trim());
+        command.Parameters.AddWithValue("$author", input.Author.Trim());
+        command.Parameters.AddWithValue("$publishedAt", now.ToString("O"));
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        return await reader.ReadAsync(cancellationToken) ? ReadComment(reader) : null;
     }
 
     public async Task<BlogPost?> UpdateAsync(int id, BlogPostInput input, CancellationToken cancellationToken = default)
@@ -141,7 +238,7 @@ public sealed class SqliteBlogRepository(BlogDatabaseOptions options, ISlugGener
                 Author = $author,
                 UpdatedAt = $updatedAt
             WHERE Id = $id
-            RETURNING Id, Title, Slug, Summary, Content, Author, PublishedAt, UpdatedAt;
+            RETURNING Id, Title, Slug, Summary, Content, Author, PublishedAt, UpdatedAt, IsActive;
             """;
         command.Parameters.AddWithValue("$id", id);
         AddPostParameters(command, input, slug, null, current);
@@ -150,15 +247,27 @@ public sealed class SqliteBlogRepository(BlogDatabaseOptions options, ISlugGener
         return await reader.ReadAsync(cancellationToken) ? ReadPost(reader) : null;
     }
 
-    public async Task<bool> DeleteAsync(int id, CancellationToken cancellationToken = default)
+    public async Task<bool> DeactivateAsync(int id, CancellationToken cancellationToken = default)
     {
         await using var connection = CreateConnection();
         await connection.OpenAsync(cancellationToken);
 
         await using var command = connection.CreateCommand();
-        command.CommandText = "DELETE FROM Posts WHERE Id = $id;";
+        command.CommandText = "UPDATE Posts SET IsActive = 0, UpdatedAt = $updatedAt WHERE Id = $id AND IsActive = 1;";
         command.Parameters.AddWithValue("$id", id);
+        command.Parameters.AddWithValue("$updatedAt", DateTimeOffset.UtcNow.ToString("O"));
 
+        return await command.ExecuteNonQueryAsync(cancellationToken) > 0;
+    }
+
+    public async Task<bool> RestoreAsync(int id, CancellationToken cancellationToken = default)
+    {
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "UPDATE Posts SET IsActive = 1, UpdatedAt = $updatedAt WHERE Id = $id AND IsActive = 0;";
+        command.Parameters.AddWithValue("$id", id);
+        command.Parameters.AddWithValue("$updatedAt", DateTimeOffset.UtcNow.ToString("O"));
         return await command.ExecuteNonQueryAsync(cancellationToken) > 0;
     }
 
@@ -167,7 +276,8 @@ public sealed class SqliteBlogRepository(BlogDatabaseOptions options, ISlugGener
         var builder = new SqliteConnectionStringBuilder
         {
             DataSource = options.DatabasePath,
-            Pooling = false
+            Pooling = false,
+            ForeignKeys = true
         };
 
         return new SqliteConnection(builder.ConnectionString);
@@ -293,6 +403,17 @@ public sealed class SqliteBlogRepository(BlogDatabaseOptions options, ISlugGener
             reader.GetString(4),
             reader.GetString(5),
             DateTimeOffset.Parse(reader.GetString(6)),
-            DateTimeOffset.Parse(reader.GetString(7)));
+            DateTimeOffset.Parse(reader.GetString(7)),
+            reader.GetInt64(8) == 1);
+    }
+
+    private static BlogComment ReadComment(SqliteDataReader reader)
+    {
+        return new BlogComment(
+            reader.GetInt32(0),
+            reader.GetInt32(1),
+            reader.GetString(2),
+            reader.GetString(3),
+            DateTimeOffset.Parse(reader.GetString(4)));
     }
 }

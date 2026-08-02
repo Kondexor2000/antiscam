@@ -8,4 +8,5 @@ public sealed record BlogPost(
     string Content,
     string Author,
     DateTimeOffset PublishedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    bool IsActive);
