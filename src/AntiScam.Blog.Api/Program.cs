@@ -9,15 +9,15 @@ var builder = WebApplication.CreateBuilder(args);
 
 var configuredWorkspace = builder.Configuration["Workspace:RootPath"];
 var workspacePath = string.IsNullOrWhiteSpace(configuredWorkspace)
-    ? @"C:\Users\kondz\antiscam"
-    : configuredWorkspace;
+    ? builder.Environment.ContentRootPath
+    : ResolvePath(configuredWorkspace, builder.Environment.ContentRootPath);
 
 var configuredDatabasePath = builder.Configuration["Blog:DatabasePath"];
 var environmentDatabasePath = Environment.GetEnvironmentVariable("ANTISCAM_BLOG_DB");
 var databasePath = !string.IsNullOrWhiteSpace(environmentDatabasePath)
-    ? environmentDatabasePath
+    ? ResolvePath(environmentDatabasePath, workspacePath)
     : !string.IsNullOrWhiteSpace(configuredDatabasePath)
-        ? configuredDatabasePath
+        ? ResolvePath(configuredDatabasePath, workspacePath)
         : Path.Combine(workspacePath, "data", "antiscam-blog.sqlite");
 
 var noSqlOptions = builder.Configuration.GetSection("NoSql").Get<NoSqlDatabaseOptions>()
@@ -28,9 +28,15 @@ if (!string.IsNullOrWhiteSpace(mongoConnectionString))
     noSqlOptions = noSqlOptions with { ConnectionString = mongoConnectionString };
 }
 var backupOptions = builder.Configuration.GetSection("Backup").Get<BackupOptions>() ?? new BackupOptions();
+backupOptions = backupOptions with
+{
+    DirectoryPath = ResolvePath(backupOptions.DirectoryPath, workspacePath),
+    KeyFilePath = ResolvePath(backupOptions.KeyFilePath, workspacePath)
+};
 var backupKey = Environment.GetEnvironmentVariable("ANTISCAM_BACKUP_KEY");
 if (!string.IsNullOrWhiteSpace(backupKey)) backupOptions = backupOptions with { EncryptionKey = backupKey };
 var httpsOptions = builder.Configuration.GetSection("Https").Get<HttpsOptions>() ?? new HttpsOptions();
+httpsOptions = httpsOptions with { CertificatePath = ResolvePath(httpsOptions.CertificatePath, workspacePath) };
 var networkOptions = builder.Configuration.GetSection("Network").Get<NetworkOptions>() ?? new NetworkOptions();
 var httpsPassword = Environment.GetEnvironmentVariable("ANTISCAM_HTTPS_CERT_PASSWORD");
 if (!string.IsNullOrWhiteSpace(httpsPassword)) httpsOptions = httpsOptions with { CertificatePassword = httpsPassword };
@@ -308,6 +314,9 @@ app.Run();
 
 public partial class Program
 {
+    private static string ResolvePath(string path, string basePath) =>
+        Path.IsPathRooted(path) ? path : Path.GetFullPath(path, basePath);
+
     private static async Task<AuthenticatedUser?> GetAdminAsync(HttpContext context, IUserRepository users, ITokenService tokens, CancellationToken cancellationToken)
     {
         var authorization = context.Request.Headers.Authorization.ToString();
