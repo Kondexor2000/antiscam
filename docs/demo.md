@@ -310,6 +310,17 @@ zwraca `401 Unauthorized`.
 
 ## Demo 9: automatyczny szyfrowany backup po zmianie IP C#
 
+Automatyczna wersja tej demonstracji korzysta z dwoch roznych adresow loopback i
+nie zmienia danych projektu:
+
+```powershell
+.\Invoke-Demo-Backup.ps1
+```
+
+Opcja `-KeepArtifacts` pozostawia tymczasowy katalog z zaszyfrowanym backupem do
+inspekcji. Ponizsza procedura z dwoma urzadzeniami pozostaje przydatna jako test
+rzeczywistej konfiguracji sieciowej.
+
 Ten scenariusz wymaga dwoch urzadzen w tej samej sieci, np. komputera serwera
 i telefonu lub drugiego laptopa. Aplikacja porownuje adres IP klienta z adresami
 zapisanymi w poprzednich sesjach: pierwsze logowanie nie tworzy kopii, a kolejne
