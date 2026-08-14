@@ -22,3 +22,4 @@ pdf_texts/
 antiscam.egg-info/
 artifacts/
 *.pfx
+models/model.joblib
