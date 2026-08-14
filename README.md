@@ -12,6 +12,7 @@ Nowy blog jest połączony z folderem roboczym, a domyślna baza SQLite powstaje
 - Python 3.10+
 - .NET SDK 8.0+
 - pip
+- OpenSSL (opcjonalnie, do generowania certyfikatów HTTPS)
 
 ## Szybki start: C# Blog WebAPI
 
@@ -98,6 +99,47 @@ curl -Method POST http://localhost:8000/ai/explain `
   -Body '{"text":"Boję się, Bank Polska chce kod BLIK 123456 pilnie"}'
 ```
 
+### Trenowanie modelu ML
+
+Projekt zawiera prosty model Machine Learning (TF-IDF + Multinomial Naive Bayes) do klasyfikacji wiadomości. Aby wytrenować model:
+
+```powershell
+python train.py
+```
+
+Skrypt trenuje na 16 próbkach treningowych (8 phishingowych, 8 bezpiecznych) i zapisuje model w `models/model.joblib`. Model jest następnie używany przez Python API do analizy ryzyka wiadomości.
+
+### Dokumentacja API (Swagger UI / OpenAPI)
+
+Obie aplikacje udostępniają interaktywną dokumentację:
+
+**C# Blog WebAPI:**
+- Swagger UI: `http://localhost:5000/swagger/ui`
+- OpenAPI JSON: `http://localhost:5000/swagger/v1/swagger.json`
+
+**Python AntiScam API:**
+- Swagger UI: `http://localhost:8000/docs`
+- ReDoc: `http://localhost:8000/redoc`
+- OpenAPI JSON: `http://localhost:8000/openapi.json`
+
+## Uruchamianie obu aplikacji jednocześnie
+
+Aby uruchomić projekt w pełni (blog + AI engine), otwórz dwa terminale i uruchom w każdym:
+
+**Terminal 1 - C# Blog API:**
+```powershell
+dotnet run --project src\AntiScam.Blog.Api\AntiScam.Blog.Api.csproj
+```
+
+**Terminal 2 - Python AntiScam API:**
+```powershell
+pip install -r requirements-dev.txt
+pip install -e .
+uvicorn antiscam.api:app --reload
+```
+
+Blog będzie dostępny na `http://localhost:5000`, a Python API na `http://localhost:8000`.
+
 ## Testy
 
 Testy C#:
@@ -115,6 +157,23 @@ pytest
 Projekt C# zawiera testy jednostkowe dla walidacji i slugów oraz testy integracyjne API, SQLite i statycznej strony HTML.
 Obejmuje też testy blokowania publikacji wpisów, w których wykryto ryzyko phishingu lub oszustwa.
 Obejmuje również testy kryptografii: PBKDF2-HMAC-SHA256 i AES-GCM-256.
+
+## Zmienne środowiskowe
+
+Pełna lista zmiennych środowiskowych używanych w projekcie:
+
+| Zmienna | Opis | Domyślnie | Przykład |
+|---------|------|----------|----------|
+| `ANTISCAM_BLOG_DB` | Ścieżka do bazy SQLite blogu | `data/antiscam-blog.sqlite` | `C:\temp\antiscam-blog.sqlite` |
+| `ANTISCAM_MONGO_CONNECTION_STRING` | Adres serwera MongoDB (opcjonalne) | - | `mongodb+srv://user:pass@cluster.mongodb.net` |
+| `ANTISCAM_BACKUP_KEY` | Klucz szyfrowania backupu (AES-GCM-256) | Auto-generowany w `data/` | `własny-długi-losowy-sekret` |
+| `ANTISCAM_HTTPS_CERT_PASSWORD` | Hasło do certyfikatu HTTPS (OpenSSL) | - | `silne-lokalne-haslo` |
+
+**Ustawianie zmiennych w PowerShell:**
+```powershell
+$env:ANTISCAM_BLOG_DB="C:\temp\antiscam-blog.sqlite"
+$env:ANTISCAM_BACKUP_KEY="moj-sekret-backup"
+```
 
 ## Zgodność z sylabusami
 
@@ -140,6 +199,7 @@ Folder `antiscam` zawiera implementację wszystkich wymaganych efektów uczenia 
 antiscam/                                  Pythonowy silnik AntiScam
 antiscam/ai.py                             Edukacyjne komponenty AI/NLP
 tests/                                     Testy Python
+train.py                                   Trenowanie modelu ML (TF-IDF + Naive Bayes)
 src/AntiScam.Blog.Api/                    C# ASP.NET Core Blog WebAPI
 src/AntiScam.Blog.Api/wwwroot/            Pliki HTML, CSS i JS
 tests/AntiScam.Blog.Api.Tests/            Testy jednostkowe i integracyjne C#
@@ -232,6 +292,78 @@ git add .
 git commit -m "Add C# blog WebAPI with SQLite"
 git push origin main
 ```
+
+## Troubleshooting / FAQ
+
+### Port jest już w użyciu
+
+**Problem:** "Address already in use" przy uruchamianiu aplikacji.
+
+**Rozwiązanie - C# API:**
+```powershell
+# Zmień port w appsettings.json lub poprzez zmienną:
+$env:ASPNETCORE_URLS="http://localhost:5002"
+```
+
+**Rozwiązanie - Python API:**
+```powershell
+uvicorn antiscam.api:app --reload --port 8001
+```
+
+### Baza SQLite jest zablokowana
+
+**Problem:** "database is locked" podczas testów lub jednoczesnych operacji.
+
+**Rozwiązanie:**
+- Upewnij się, że tylko jedna instancja C# API jest uruchomiona
+- Zamknij inne procesy korzystające z bazy (np. `sqlite3.exe`)
+- Usuń plik `.sqlite-journal` jeśli istnieje
+
+### Python dependencies nie instalują się
+
+**Problem:** Błędy podczas `pip install -r requirements-dev.txt`.
+
+**Rozwiązanie:**
+```powershell
+# Uaktualnij pip i setuptools
+python -m pip install --upgrade pip setuptools
+# Czyszczenie cache
+pip cache purge
+# Spróbuj ponownie
+pip install -r requirements-dev.txt
+```
+
+### Backup key nie jest ustawiony
+
+**Problem:** "Backup key not configured" w logach, mimo że `ANTISCAM_BACKUP_KEY` jest pusta.
+
+**Rozwiązanie:**
+- Aplikacja automatycznie tworzy lokalny klucz w `data/antiscam-backup.key`
+- Aby użyć własnego klucza, ustaw zmienną `ANTISCAM_BACKUP_KEY` przed uruchomieniem
+- Plik `data/antiscam-backup.key` i katalog `secure_backups/` są wykluczone z Gita
+
+### Testy nie przechodzą
+
+**Problem:** Błędy w `pytest` lub `dotnet test`.
+
+**Rozwiązanie:**
+```powershell
+# Zczyść cache i zbuduj na nowo
+rm -Force -Recurse bin, obj  # lub Remove-Item
+rm -Force .pytest_cache
+dotnet clean
+dotnet build
+pytest --tb=short  # Szczegółowy output
+```
+
+### OpenSSL certificate issues
+
+**Problem:** Błędy HTTPS na Windows lub certyfikat nie jest zaufany.
+
+**Rozwiązanie:**
+- Uruchom skrypt jako Administrator: `Set-ExecutionPolicy -ExecutionPolicy Unrestricted`
+- Upewnij się, że OpenSSL jest zainstalowany: `openssl version`
+- Zaufaj certyfikatowi CA: `certs/antiscam-ca.crt` (dodaj do Windows Certificate Store)
 
 ## Licencja
 
