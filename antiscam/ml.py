@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 
 import joblib
+from sklearn.exceptions import InconsistentVersionWarning
 from sklearn.pipeline import Pipeline
 
 
@@ -18,13 +20,24 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 MODEL_PATH = BASE_DIR / "models" / "model.joblib"
 
+
+def load_classifier(path: Path) -> Pipeline:
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            category=InconsistentVersionWarning,
+            module=r"sklearn\..*",
+        )
+        return joblib.load(path)
+
+
 if not MODEL_PATH.exists():
     raise FileNotFoundError(
         f"Nie znaleziono modelu: {MODEL_PATH}. "
         "Uruchom najpierw train.py."
     )
 
-_CLASSIFIER: Pipeline = joblib.load(MODEL_PATH)
+_CLASSIFIER: Pipeline = load_classifier(MODEL_PATH)
 
 _CLASSES = list(_CLASSIFIER.classes_)
 
