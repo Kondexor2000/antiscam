@@ -22,13 +22,25 @@ MODEL_PATH = BASE_DIR / "models" / "model.joblib"
 
 
 def load_classifier(path: Path) -> Pipeline:
-    with warnings.catch_warnings():
-        warnings.filterwarnings(
-            "ignore",
-            category=InconsistentVersionWarning,
-            module=r"sklearn\..*",
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        classifier = joblib.load(path)
+
+    mismatched_versions = [
+        warning for warning in caught
+        if issubclass(warning.category, InconsistentVersionWarning)
+    ]
+
+    if mismatched_versions:
+        warnings.warn(
+            "Model version mismatch detected: the saved model was created with a different "
+            "scikit-learn version than the runtime. Predictions may be unreliable; rebuild it "
+            "with the current environment via 'python train.py'.",
+            RuntimeWarning,
+            stacklevel=2,
         )
-        return joblib.load(path)
+
+    return classifier
 
 
 if not MODEL_PATH.exists():
