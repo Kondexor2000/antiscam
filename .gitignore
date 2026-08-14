@@ -19,7 +19,6 @@ certs/
 AI_antiscam/
 pdf_strings/
 pdf_texts/
-models/
 antiscam.egg-info/
 artifacts/
 *.pfx
