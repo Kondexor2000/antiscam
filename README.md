@@ -5,7 +5,7 @@ AntiScam to repozytorium z dwoma częściami:
 - silnikiem Python/FastAPI do oceny ryzyka wiadomości phishingowych,
 - blogiem C# ASP.NET Core WebAPI z plikami HTML i bazą SQLite.
 
-Nowy blog jest połączony z folderem roboczym `C:\Users\kondz\antiscam`, a domyślna baza SQLite powstaje w `C:\Users\kondz\antiscam\data\antiscam-blog.sqlite`.
+Nowy blog jest połączony z folderem roboczym, a domyślna baza SQLite powstaje w `data/antiscam-blog.sqlite` (względnie do katalogu projektu).
 
 ## Wymagania
 

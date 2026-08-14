@@ -5,7 +5,7 @@ AntiScam now contains two application surfaces:
 - a Python/FastAPI phishing-risk engine,
 - a C# ASP.NET Core Blog WebAPI with HTML files and SQLite storage.
 
-The new blog API is connected to the workspace folder `C:\Users\kondz\antiscam`. By default, its SQLite database is created at `C:\Users\kondz\antiscam\data\antiscam-blog.sqlite`.
+The new blog API is connected to the workspace folder. By default, its SQLite database is created at `data/antiscam-blog.sqlite` (relative to the project directory).
 
 ## Requirements
 
