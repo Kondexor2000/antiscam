@@ -206,6 +206,16 @@ Następnie ustaw `Https:Enabled` na `true` i uruchom aplikację. Kestrel będzie
 
 Bez certyfikatu zwykłe `dotnet run --project .\src\AntiScam.Blog.Api` nasłuchuje na wszystkich interfejsach na porcie 5000. Dla komputera z adresem `192.168.1.22` użyj wtedy `http://192.168.1.22:5000` z urządzenia w tej samej sieci. Jeśli połączenie z innego urządzenia zostanie zablokowane, zezwól aplikacji .NET na ruch przychodzący w Zaporze Windows dla sieci prywatnych.
 
+## Aktualizacja angielskiej wersji README
+
+Aby odświeżyć `README.en.md` na podstawie polskiego `README.md`, uruchom:
+
+```powershell
+.\tools\sync-readme-en.ps1
+```
+
+Skrypt używa `deep-translator` do tłumaczenia treści dokumentacji i zapisuje wynik do `README.en.md`.
+
 ## GitHub
 
 Repozytorium jest skonfigurowane z origin:

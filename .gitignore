@@ -15,6 +15,7 @@ src/AntiScam.Blog.Api/secure_backups/
 *.pdf
 tools/*
 !tools/generate-https-certificate.ps1
+!tools/sync-readme-en.ps1
 certs/
 AI_antiscam/
 pdf_strings/

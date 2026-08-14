@@ -14,7 +14,8 @@ dependencies = [
     "pydantic",
     "scikit-learn",
     "tldextract",
-    "uvicorn"
+    "uvicorn",
+    "deep-translator"
 ]
 
 
