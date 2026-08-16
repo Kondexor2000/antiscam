@@ -33,7 +33,6 @@ Ryzykowny wpis blogowy nie jest zapisywany. API zwraca `422 Unprocessable Entity
 
 Modul `src/AntiScam.Blog.Api/Security/` zawiera dwa kontrolowane przyklady:
 
-- `SecurePasswordHasher`: hashowanie hasel z PBKDF2-HMAC-SHA256, losowa sola, co najmniej 210000 iteracji, porownanie stalego czasu.
 - `AesGcmAuthenticatedEncryptor`: szyfrowanie uwierzytelnione AES-GCM-256 z losowym nonce i dodatkowo uwierzytelnianymi danymi.
 
 Klucze szyfrujace nie sa przechowywane w repozytorium. W scenariuszu produkcyjnym powinny pochodzic z menedzera sekretow lub zmiennych srodowiskowych.

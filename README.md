@@ -156,7 +156,7 @@ pytest
 
 Projekt C# zawiera testy jednostkowe dla walidacji i slugów oraz testy integracyjne API, SQLite i statycznej strony HTML.
 Obejmuje też testy blokowania publikacji wpisów, w których wykryto ryzyko phishingu lub oszustwa.
-Obejmuje również testy kryptografii: PBKDF2-HMAC-SHA256 i AES-GCM-256.
+Obejmuje również testy kryptografii AES-GCM-256.
 
 ## Zmienne środowiskowe
 
@@ -166,13 +166,11 @@ Pełna lista zmiennych środowiskowych używanych w projekcie:
 |---------|------|----------|----------|
 | `ANTISCAM_BLOG_DB` | Ścieżka do bazy SQLite blogu | `data/antiscam-blog.sqlite` | `C:\temp\antiscam-blog.sqlite` |
 | `ANTISCAM_MONGO_CONNECTION_STRING` | Adres serwera MongoDB (opcjonalne) | - | `mongodb+srv://user:pass@cluster.mongodb.net` |
-| `ANTISCAM_BACKUP_KEY` | Klucz szyfrowania backupu (AES-GCM-256) | Auto-generowany w `data/` | `własny-długi-losowy-sekret` |
 | `ANTISCAM_HTTPS_CERT_PASSWORD` | Hasło do certyfikatu HTTPS (OpenSSL) | - | `silne-lokalne-haslo` |
 
 **Ustawianie zmiennych w PowerShell:**
 ```powershell
 $env:ANTISCAM_BLOG_DB="C:\temp\antiscam-blog.sqlite"
-$env:ANTISCAM_BACKUP_KEY="moj-sekret-backup"
 ```
 
 ## Zgodność z sylabusami
@@ -231,27 +229,6 @@ Do testów lub lokalnych eksperymentów można nadpisać ścieżkę bazy zmienn�
 ```powershell
 $env:ANTISCAM_BLOG_DB="C:\temp\antiscam-blog.sqlite"
 ```
-
-### Konta, administracja i bezpieczne kopie
-
-`POST /api/auth/register` rejestruje użytkownika (`userName`, `password`); pierwsze konto otrzymuje rolę `Admin`, kolejne rolę `User`. Logowanie przez `POST /api/auth/login` zwraca token Bearer. Hasła są zapisywane wyłącznie jako PBKDF2-HMAC-SHA256.
-
-Administrator przekazuje token w nagłówku `Authorization: Bearer <token>` i może:
-
-- zablokować konto: `POST /api/admin/users/{id}/block`;
-- zobaczyć także nieaktywne wpisy: `GET /api/admin/posts`;
-- ukryć wpis (miękkie usunięcie): `POST /api/admin/posts/{id}/deactivate` lub `DELETE /api/posts/{id}`;
-- przywrócić wpis: `POST /api/admin/posts/{id}/restore`.
-
-Przy logowaniu z adresu IP innego niż przy poprzedniej sesji aplikacja automatycznie tworzy szyfrowaną kopię bazy, jeśli jej zawartość uległa zmianie. Ustaw sekret poza repozytorium:
-
-```powershell
-$env:ANTISCAM_BACKUP_KEY = "własny-długi-losowy-sekret"
-```
-
-Kopia i metadane są zapisywane w `secure_backups/backup.enc.json` oraz `secure_backups/backup_meta.json`. Używane jest AES-GCM-256 z losowym nonce i znacznikiem integralności; źródłowa baza nie jest zapisywana w formie jawnej. Bez klucza backup jest celowo pomijany i zapisywany jest wpis ostrzegawczy w logu.
-
-Backup wykonuje spójny snapshot SQLite przez mechanizm `BackupDatabase`, więc obejmuje wszystkie tabele (wpisy, komentarze, użytkowników i sesje), a nie tylko plik głównej bazy. Jeśli `ANTISCAM_BACKUP_KEY` nie jest ustawione, aplikacja jednorazowo tworzy lokalny sekret w `data/antiscam-backup.key`; plik oraz katalog z kopiami są wykluczone z Gita.
 
 ### HTTPS w sieci lokalnej (OpenSSL)
 
@@ -332,15 +309,6 @@ pip cache purge
 # Spróbuj ponownie
 pip install -r requirements-dev.txt
 ```
-
-### Backup key nie jest ustawiony
-
-**Problem:** "Backup key not configured" w logach, mimo że `ANTISCAM_BACKUP_KEY` jest pusta.
-
-**Rozwiązanie:**
-- Aplikacja automatycznie tworzy lokalny klucz w `data/antiscam-backup.key`
-- Aby użyć własnego klucza, ustaw zmienną `ANTISCAM_BACKUP_KEY` przed uruchomieniem
-- Plik `data/antiscam-backup.key` i katalog `secure_backups/` są wykluczone z Gita
 
 ### Testy nie przechodzą
 

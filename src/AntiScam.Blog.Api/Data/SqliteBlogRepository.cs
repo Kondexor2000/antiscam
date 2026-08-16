@@ -44,29 +44,6 @@ public sealed class SqliteBlogRepository(BlogDatabaseOptions options, ISlugGener
                 CREATE INDEX IF NOT EXISTS IX_Comments_PostId_PublishedAt
                 ON Comments (PostId, PublishedAt, Id);
 
-                CREATE TABLE IF NOT EXISTS Users (
-                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    UserName TEXT NOT NULL COLLATE NOCASE UNIQUE,
-                    PasswordAlgorithm TEXT NOT NULL,
-                    PasswordIterations INTEGER NOT NULL,
-                    PasswordSalt TEXT NOT NULL,
-                    PasswordHash TEXT NOT NULL,
-                    Role TEXT NOT NULL,
-                    IsBlocked INTEGER NOT NULL DEFAULT 0,
-                    CreatedAt TEXT NOT NULL
-                );
-
-                CREATE TABLE IF NOT EXISTS UserSessions (
-                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    UserId INTEGER NOT NULL,
-                    TokenHash TEXT NOT NULL UNIQUE,
-                    RemoteIp TEXT NOT NULL,
-                    CreatedAt TEXT NOT NULL,
-                    FOREIGN KEY (UserId) REFERENCES Users(Id) ON DELETE CASCADE
-                );
-
-                CREATE INDEX IF NOT EXISTS IX_UserSessions_UserId_RemoteIp
-                ON UserSessions (UserId, RemoteIp);
                 """;
             await command.ExecuteNonQueryAsync(cancellationToken);
         }
@@ -76,6 +53,12 @@ public sealed class SqliteBlogRepository(BlogDatabaseOptions options, ISlugGener
             migration.CommandText = "ALTER TABLE Posts ADD COLUMN IsActive INTEGER NOT NULL DEFAULT 1;";
             try { await migration.ExecuteNonQueryAsync(cancellationToken); }
             catch (SqliteException exception) when (exception.SqliteErrorCode == 1 && exception.Message.Contains("duplicate column name", StringComparison.OrdinalIgnoreCase)) { }
+        }
+
+        await using (var removeAuthTables = connection.CreateCommand())
+        {
+            removeAuthTables.CommandText = "DROP TABLE IF EXISTS UserSessions; DROP TABLE IF EXISTS Users;";
+            await removeAuthTables.ExecuteNonQueryAsync(cancellationToken);
         }
 
         await SeedAsync(connection, cancellationToken);

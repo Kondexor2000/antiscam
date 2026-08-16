@@ -2,17 +2,6 @@
 
 Ten dokument wyjasnia, jak projekt pokrywa wymagania kryptologii i zarzadzania kluczami z sylabusow.
 
-## Hashowanie hasel
-
-`SecurePasswordHasher` uzywa PBKDF2-HMAC-SHA256:
-
-- losowa sol 16 bajtow,
-- hash 32 bajty,
-- domyslnie 210000 iteracji,
-- weryfikacja przez `CryptographicOperations.FixedTimeEquals`.
-
-To jest mechanizm do przechowywania sekretow typu haslo. Nie jest to szyfrowanie odwracalne.
-
 ## Szyfrowanie uwierzytelnione
 
 `AesGcmAuthenticatedEncryptor` uzywa AES-GCM-256:

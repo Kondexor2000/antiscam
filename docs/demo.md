@@ -65,8 +65,6 @@ dotnet test tests\AntiScam.Blog.Api.Tests\AntiScam.Blog.Api.Tests.csproj --filte
 | `RiskAnalyzer` | Wiadomosc z kodem BLIK jest oznaczona jako `HIGH RISK`, zablokowana i zawiera powod `BLIK CONFIRMED`. |
 | `RiskAnalyzer` | Obfuskowany zapis `B L I K` oraz `k-o-d` jest normalizowany i blokowany. |
 | `RiskAnalyzer` | Podszywanie sie pod zaufana domene i literowka `g00gle.com` sa wykrywane jako ryzykowne linki. |
-| `SecurePasswordHasher` | Haslo zahaszowane przez serwis przechodzi weryfikacje i ma oczekiwany algorytm. |
-| `SecurePasswordHasher` | Nieprawidlowe haslo nie przechodzi weryfikacji. |
 | `SlugGenerator` | Polski tytul jest zamieniany na przyjazny adres URL. |
 | `SlugGenerator` | Spacje, interpunkcja i znaki specjalne sa usuwane z adresu URL. |
 | `SlugGenerator` | Pusty tytul zwraca domyslny slug `post`. |
@@ -86,7 +84,6 @@ dotnet test tests\AntiScam.Blog.Api.Tests\AntiScam.Blog.Api.Tests.csproj --filte
 | `POST /api/posts/{id}/comments` | Bezpieczny komentarz zwraca `201 Created` i jest dostepny przez `GET`. |
 | `POST /api/posts/{id}/comments` | Komentarz scamowy zwraca `422` i nie pojawia sie na liscie komentarzy. |
 | `GET /` | Strona startowa zwraca oczekiwany statyczny HTML oraz link do wszystkich wpisow. |
-| Administracja i uwierzytelnianie | Administrator moze zablokowac uzytkownika, usunac wpis programowo oraz go przywrocic; zablokowany uzytkownik nie moze sie zalogowac. |
 
 Nastepnie uruchom blog API:
 
@@ -216,156 +213,6 @@ Invoke-RestMethod -Uri http://localhost:5000/api/workspace
 Oczekiwany wynik: zdrowie API ma status `ok`, a `/api/storage` wskazuje SQLite
 jako magazyn podstawowy. Lista incydentow moze byc pusta, gdy MongoDB nie jest
 uruchomione albo nie zablokowano jeszcze zadnego wpisu.
-
-## Demo 6: rejestracja, logowanie i sesja C#
-
-Pierwsze konto w nowej bazie danych otrzymuje role `Admin`. Aby bezpiecznie
-zademonstrowac role administratora bez zmiany stalej bazy, uruchom serwer w
-osobnym terminalu z nowa, unikalna baza:
-
-```powershell
-$env:ANTISCAM_BLOG_DB = Join-Path $PWD ("data\antiscam-demo-{0}.sqlite" -f [guid]::NewGuid().ToString("N"))
-dotnet run --project src\AntiScam.Blog.Api\AntiScam.Blog.Api.csproj --urls http://0.0.0.0:5000
-```
-
-W terminalu z poleceniami demonstracyjnymi zarejestruj administratora i zwyklego
-czytelnika, a nastepnie pobierz token sesji administratora:
-
-```powershell
-$admin = Invoke-RestMethod -Uri http://localhost:5000/api/auth/register -Method POST -ContentType "application/json" -Body '{"userName":"administrator-demo","password":"StrongPassword123!"}'
-$reader = Invoke-RestMethod -Uri http://localhost:5000/api/auth/register -Method POST -ContentType "application/json" -Body '{"userName":"czytelnik-demo","password":"AnotherStrongPassword123!"}'
-$login = Invoke-RestMethod -Uri http://localhost:5000/api/auth/login -Method POST -ContentType "application/json" -Body '{"userName":"administrator-demo","password":"StrongPassword123!"}'
-$headers = @{ Authorization = "Bearer $($login.accessToken)" }
-$login.user
-```
-
-Oczekiwany wynik: `administrator-demo` ma role `Admin`, a odpowiedz logowania
-zawiera `accessToken`. Hasla nie sa zwracane przez API ani przechowywane w formie
-tekstowej.
-
-## Demo 7: moderacja administratora C#
-
-Token z poprzedniego kroku pozwala pobrac konta i wpisy, zablokowac czytelnika
-oraz wykonac programowe usuniecie i przywrocenie wpisu. Polecenia wykorzystuja
-utworzona w poprzednim kroku zmienna `$headers`. Id czytelnika pobieramy z API,
-zamiast polegac na zmiennej `$reader` z poprzedniego bloku.
-
-```powershell
-$users = Invoke-RestMethod -Uri http://localhost:5000/api/admin/users -Headers $headers
-Invoke-RestMethod -Uri http://localhost:5000/api/admin/posts -Headers $headers
-
-$reader = $users | Where-Object { $_.userName -eq "czytelnik-demo" } | Select-Object -First 1
-if ($null -eq $reader) {
-  throw "Nie znaleziono konta czytelnik-demo. Wykonaj najpierw Demo 6 na tej samej bazie."
-}
-if ($reader.isBlocked) {
-  Invoke-WebRequest -Uri "http://localhost:5000/api/admin/users/$($reader.id)/unblock" -Method POST -Headers $headers -UseBasicParsing
-}
-Invoke-WebRequest -Uri "http://localhost:5000/api/admin/users/$($reader.id)/block" -Method POST -Headers $headers -UseBasicParsing
-try {
-  Invoke-WebRequest -Uri http://localhost:5000/api/auth/login -Method POST -ContentType "application/json" -Body '{"userName":"czytelnik-demo","password":"AnotherStrongPassword123!"}' -UseBasicParsing
-} catch {
-  [int]$_.Exception.Response.StatusCode
-}
-```
-
-Oczekiwany wynik: blokada zwraca `204 No Content`, a logowanie zablokowanego konta
-zwraca `403 Forbidden`. Aby pokazac programowe usuwanie i odtworzenie wpisu,
-pobierz jego identyfikator, a potem wykonaj:
-
-```powershell
-$post = (Invoke-RestMethod -Uri http://localhost:5000/api/posts)[0]
-Invoke-WebRequest -Uri "http://localhost:5000/api/posts/$($post.id)" -Method DELETE -Headers $headers -UseBasicParsing
-try {
-  Invoke-RestMethod -Uri http://localhost:5000/api/posts/$($post.slug)
-} catch {
-  [int]$_.Exception.Response.StatusCode
-}
-Invoke-WebRequest -Uri "http://localhost:5000/api/admin/posts/$($post.id)/restore" -Method POST -Headers $headers -UseBasicParsing
-Invoke-RestMethod -Uri http://localhost:5000/api/posts/$($post.slug)
-```
-
-Oczekiwany wynik: usuniecie zwraca `204`, odczyt usunietego wpisu `404`, a po
-przywroceniu wpis ponownie jest dostepny. Mozna rowniez odblokowac konto przez
-`POST /api/admin/users/{id}/unblock` z tym samym naglowkiem autoryzacji.
-
-## Demo 8: aktualizacja wpisu i wylogowanie C#
-
-Aktualizacja wykorzystuje walidacje i analize ryzyka tak samo jak tworzenie
-wpisu. Uzyj istniejacego identyfikatora wpisu w zmiennej `$post`:
-
-```powershell
-Invoke-RestMethod -Uri "http://localhost:5000/api/posts/$($post.id)" -Method PUT -ContentType "application/json" -Body '{"title":"Zaktualizowane zasady bezpieczenstwa","summary":"Krotka aktualizacja.","content":"Nie podawaj nikomu kodow autoryzacyjnych i weryfikuj nadawce.","author":"AntiScam Team"}'
-Invoke-WebRequest -Uri http://localhost:5000/api/auth/logout -Method POST -Headers $headers -UseBasicParsing
-try {
-  Invoke-RestMethod -Uri http://localhost:5000/api/admin/users -Headers $headers
-} catch {
-  [int]$_.Exception.Response.StatusCode
-}
-```
-
-Oczekiwany wynik: aktualizacja zwraca wpis ze zmienionymi danymi, wylogowanie
-zwraca `204 No Content`, a ponowne uzycie tokenu dla endpointu administratora
-zwraca `401 Unauthorized`.
-
-## Demo 9: automatyczny szyfrowany backup po zmianie IP C#
-
-Automatyczna wersja tej demonstracji korzysta z dwoch roznych adresow loopback i
-nie zmienia danych projektu:
-
-```powershell
-.\Invoke-Demo-Backup.ps1
-```
-
-Opcja `-KeepArtifacts` pozostawia tymczasowy katalog z zaszyfrowanym backupem do
-inspekcji. Ponizsza procedura z dwoma urzadzeniami pozostaje przydatna jako test
-rzeczywistej konfiguracji sieciowej.
-
-Ten scenariusz wymaga dwoch urzadzen w tej samej sieci, np. komputera serwera
-i telefonu lub drugiego laptopa. Aplikacja porownuje adres IP klienta z adresami
-zapisanymi w poprzednich sesjach: pierwsze logowanie nie tworzy kopii, a kolejne
-logowanie tego samego konta z innego IP tworzy backup SQLite zaszyfrowany AES-GCM.
-
-Na komputerze serwera sprawdz jego adres LAN i stan plikow backupu:
-
-```powershell
-Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -notlike "169.254*" -and $_.IPAddress -ne "127.0.0.1" }
-Get-ChildItem .\secure_backups\backup.enc.json, .\secure_backups\backup_meta.json -ErrorAction SilentlyContinue | Select-Object Name, Length, LastWriteTimeUtc
-```
-
-Na pierwszym urzadzeniu zarejestruj konto i zaloguj sie pierwszy raz. Zamiast
-`ADRES_IP_SERWERA` wpisz adres LAN pokazany w poprzednim poleceniu:
-
-```powershell
-Invoke-RestMethod -Uri http://ADRES_IP_SERWERA:5000/api/auth/register `
-  -Method POST -ContentType "application/json" `
-  -Body '{"userName":"backup-demo","password":"StrongPassword123!"}'
-
-Invoke-RestMethod -Uri http://ADRES_IP_SERWERA:5000/api/auth/login `
-  -Method POST -ContentType "application/json" `
-  -Body '{"userName":"backup-demo","password":"StrongPassword123!"}'
-```
-
-Na drugim urzadzeniu (z innym adresem IP) wykonaj tylko logowanie tym samym kontem:
-
-```powershell
-Invoke-RestMethod -Uri http://ADRES_IP_SERWERA:5000/api/auth/login `
-  -Method POST -ContentType "application/json" `
-  -Body '{"userName":"backup-demo","password":"StrongPassword123!"}'
-```
-
-Ponownie na komputerze serwera sprawdz pliki:
-
-```powershell
-Get-ChildItem .\secure_backups\backup.enc.json, .\secure_backups\backup_meta.json | Select-Object Name, Length, LastWriteTimeUtc
-Get-Content .\secure_backups\backup_meta.json
-```
-
-Oczekiwany wynik: po drugim logowaniu pojawia sie albo otrzymuje nowszy znacznik
-czasu plik `backup.enc.json`, obok niego istnieje `backup_meta.json` z algorytmem
-`AES-GCM-256`. Nie otwieraj `backup.enc.json` jako danych aplikacji: zawiera
-zaszyfrowany ladunek kopii. Jezeli oba urzadzenia maja ten sam adres IP (np. przez
-ten sam VPN/proxy), automatyzacja celowo nie uruchomi backupu.
 
 ## Demo 10: Python API
 

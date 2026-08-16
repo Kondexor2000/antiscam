@@ -169,32 +169,6 @@ label {
   font-weight: 700;
 }
 
-.publication-identity {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 16px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-
-.publication-identity legend {
-  width: 100%;
-  margin-bottom: 2px;
-  font-weight: 700;
-}
-
-.publication-identity label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-weight: 600;
-}
-
-.publication-identity input {
-  width: auto;
-}
-
 input,
 textarea {
   width: 100%;
@@ -230,36 +204,6 @@ button:hover {
   margin: 14px 0 0;
   color: #176c7a;
   font-weight: 700;
-}
-
-.admin-panel {
-  border-top: 1px solid #d6e0e7;
-  margin-top: 22px;
-  padding-top: 18px;
-}
-
-.admin-panel h3 {
-  font-size: 1rem;
-  margin: 18px 0 8px;
-}
-
-.admin-list {
-  display: grid;
-  gap: 8px;
-}
-
-.admin-row {
-  align-items: center;
-  background: #f2f7f8;
-  display: flex;
-  gap: 10px;
-  justify-content: space-between;
-  padding: 10px;
-}
-
-.admin-row button {
-  flex: 0 0 auto;
-  padding: 7px 10px;
 }
 
 @media (max-width: 900px) {

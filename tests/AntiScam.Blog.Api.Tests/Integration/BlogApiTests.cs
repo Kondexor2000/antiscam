@@ -172,34 +172,4 @@ public sealed class BlogApiTests : IClassFixture<BlogApiFactory>
         Assert.Contains("Blog bezpieczeństwa", html);
     }
 
-    [Fact]
-    public async Task Administrator_CanBlockUserAndSoftDeleteAndRestorePost()
-    {
-        var adminRegistration = await _client.PostAsJsonAsync("/api/auth/register", new RegisterInput("administrator", "StrongPassword123!"));
-        Assert.Equal(HttpStatusCode.Created, adminRegistration.StatusCode);
-        var userRegistration = await _client.PostAsJsonAsync("/api/auth/register", new RegisterInput("reader", "AnotherStrongPassword123!"));
-        Assert.Equal(HttpStatusCode.Created, userRegistration.StatusCode);
-        var reader = await userRegistration.Content.ReadFromJsonAsync<BlogUser>();
-        Assert.NotNull(reader);
-
-        var login = await _client.PostAsJsonAsync("/api/auth/login", new LoginInput("administrator", "StrongPassword123!"));
-        Assert.Equal(HttpStatusCode.OK, login.StatusCode);
-        var auth = await login.Content.ReadFromJsonAsync<AuthResponse>();
-        Assert.NotNull(auth);
-        _client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", auth.AccessToken);
-
-        var block = await _client.PostAsync($"/api/admin/users/{reader.Id}/block", null);
-        Assert.Equal(HttpStatusCode.NoContent, block.StatusCode);
-        var blockedLogin = await _client.PostAsJsonAsync("/api/auth/login", new LoginInput("reader", "AnotherStrongPassword123!"));
-        Assert.Equal(HttpStatusCode.Forbidden, blockedLogin.StatusCode);
-
-        var posts = await _client.GetFromJsonAsync<List<BlogPost>>("/api/posts");
-        var id = posts![0].Id;
-        var delete = await _client.DeleteAsync($"/api/posts/{id}");
-        Assert.Equal(HttpStatusCode.NoContent, delete.StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await _client.GetAsync($"/api/posts/{posts[0].Slug}")).StatusCode);
-        var restore = await _client.PostAsync($"/api/admin/posts/{id}/restore", null);
-        Assert.Equal(HttpStatusCode.NoContent, restore.StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await _client.GetAsync($"/api/posts/{posts[0].Slug}")).StatusCode);
-    }
 }

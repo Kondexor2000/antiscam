@@ -7,14 +7,14 @@ AntiScam is a repository with two parts:
 
 The new blog is connected to the working folder, and the default SQLite database is created in `data/antiscam-blog.sqlite` (relative to the project directory).
 
-## Wymagania
+## Requirements
 
 - Python 3.10+
 - .NET SDK 8.0+
 - beep
 - OpenSSL (optional, for generating HTTPS certificates)
 
-## Szybki start: C# Blog WebAPI
+## Quick Start: C# WebAPI Blog
 ```powershell
 dotnet restore AntiScamBlog.sln
 dotnet run --project src\AntiScam.Blog.Api\AntiScam.Blog.Api.csproj
@@ -33,15 +33,15 @@ Before publication, C# WebAPI analyzes the title, abstract, content and author.
 
 The entry will only be saved in `LOW RISK` status; for `MEDIUM RISK` or `HIGH RISK` the API returns `422 Unprocessable Entity` and does not write an entry to SQLite.
 
-### Opcjonalna baza NoSQL (MongoDB)
+### Optional NoSQL database (MongoDB)
 
 SQLite is still the default blog post database.
 
-Opcjonalna baza MongoDB przechowuje jedynie zgłoszenia odrzucone przez analizę ryzyka, więc nie zmienia działania istniejącego magazynu SQLite.
+The optional MongoDB database only stores tickets rejected by risk analysis, so it does not change the operation of the existing SQLite store.
 
 MongoDB is enabled by `NoSql:Enabled`.
 
-Adres serwera można podać w `NoSql:ConnectionString` albo przez zmienną środowiskową `ANTISCAM_MONGO_CONNECTION_STRING`.
+The server address can be specified in `NoSql:ConnectionString` or via the `ANTISCAM_MONGO_CONNECTION_STRING` environment variable.
 
 The default database and collection are `antiscam` and `blocked-submissions`.
 
@@ -49,7 +49,7 @@ The current configuration of both storages is returned by `GET /api/storage`.
 
 Rejected reports can be read by `GET /api/incidents?limit=50`.
 
-Po włączeniu MongoDB endpoint zwraca wpisy z kolekcji `blocked-submissions`, od najnowszych.
+After enabling MongoDB, the endpoint returns entries from the `blocked-submissions` collection, newest first.
 
 If the database is disabled or unavailable, the response is an empty list.
 
@@ -65,13 +65,13 @@ POST   /api/posts
 PUT    /api/posts/{id}
 DELETE /api/posts/{id}
 ```
-Przykład dodania wpisu:
+Example of adding an entry:
 ```powershell
 curl -Method POST http://localhost:5000/api/posts `
   -ContentType "application/json" `
-  -Body '{"title":"Alarm phishingowy","summary":"Krótki opis","content":"Treść wpisu","author":"AntiScam Team"}'
+  -Body '{"title":"Phishing Alert","summary":"Short description","content":"Post content","author":"AntiScam Team"}'
 ```
-## Szybki start: Python AntiScam API
+## Quickstart: Python AntiScam API
 ```powershell
 pip install -r requirements-dev.txt
 pip install -e .
@@ -85,17 +85,17 @@ GET  /
 POST /scan
 POST /ai/explain
 ```
-Przykład:
+Example:
 ```powershell
 curl -Method POST http://localhost:8000/scan `
   -ContentType "application/json" `
-  -Body '{"text":"Wyślij BLIK 123456 natychmiast!"}'
+  -Body '{"text":"Send BLIK 123456 immediately!"}'
 ```
-Endpoint `/ai/explain` pokazuje praktycznie, co ułatwia AI/NLP w projekcie: rozpoznaje intencję użytkownika, ton emocjonalny, ważne terminy, nazwy własne, podobieństwo do wzorca oszustwa i sugeruje bezpieczne następne działanie.
+The `/ai/explain` endpoint shows practically what AI/NLP facilitates in a project: it recognizes user intent, emotional tone, important terms, proper names, similarity to a fraud pattern and suggests a safe next action.
 ```powershell
 curl -Method POST http://localhost:8000/ai/explain `
   -ContentType "application/json" `
-  -Body '{"text":"Boję się, Bank Polska chce kod BLIK 123456 pilnie"}'
+  -Body '{"text":"I\'m scared, Polish Bank wants my BLIK code 123456 urgently"}'
 ```
 ### Training the ML model
 
@@ -107,7 +107,7 @@ The script trains on 16 training samples (8 phishing, 8 safe) and saves the mode
 
 The model is then used by the Python API to analyze the risk of the message.
 
-### Dokumentacja API (Swagger UI / OpenAPI)
+### API Documentation (Swagger UI / OpenAPI)
 
 Both applications provide interactive documentation:
 
@@ -122,9 +122,9 @@ Both applications provide interactive documentation:
 
 ## Run both applications at the same time
 
-Aby uruchomić projekt w pełni (blog + AI engine), otwórz dwa terminale i uruchom w każdym:
+To run the project fully (blog + AI engine), open two terminals and run in each:
 
-**Terminal 1 - C# Blog API:**
+**Terminal 1 - C# API Blog:**
 ```powershell
 dotnet run --project src\AntiScam.Blog.Api\AntiScam.Blog.Api.csproj
 ```
@@ -148,11 +148,11 @@ pytest
 ```
 The C# project includes unit tests for validation and minions, and integration tests for API, SQLite, and static HTML.
 
-Obejmuje też testy blokowania publikacji wpisów, w których wykryto ryzyko phishingu lub oszustwa.
+It also includes tests to block the publication of entries that are at risk of phishing or fraud.
 
-Also includes cryptography tests: PBKDF2-HMAC-SHA256 and AES-GCM-256.
+Also includes AES-GCM-256 cryptography tests.
 
-## Zmienne środowiskowe
+## Environment variables
 
 Full list of environment variables used in the project:
 
@@ -160,19 +160,17 @@ Full list of environment variables used in the project:
 |---------|------|----------|----------|
 | `ANTISCAM_BLOG_DB` | Path to the blog's SQLite database | `data/antiscam-blog.sqlite` | `C:\temp\antiscam-blog.sqlite` |
 | `ANTISCAM_MONGO_CONNECTION_STRING` | MongoDB server address (optional) | - | `mongodb+srv://user:pass@cluster.mongodb.net` |
-| `ANTISCAM_BACKUP_KEY` | Backup encryption key (AES-GCM-256) | Auto-generated in `data/` | `own-long-random-secret` |
 | `ANTISCAM_HTTPS_CERT_PASSWORD` | HTTPS (OpenSSL) certificate password | - | `strong-local-password` |
 
 **Setting Variables in PowerShell:**
 ```powershell
 $env:ANTISCAM_BLOG_DB="C:\temp\antiscam-blog.sqlite"
-$env:ANTISCAM_BACKUP_KEY="moj-sekret-backup"
 ```
-## Zgodność z sylabusami
+## Compliance with Syllabi
 
-**The project fully meets the requirements of the syllabuses of three subjects: Fundamentals of computer security, Security of computer systems and IT security.**
+**The project fully meets the requirements of the syllabi for three courses: Fundamentals of Computer Security, Computer Systems Security, and Information Security.**
 
-Folder `antiscam` zawiera implementację wszystkich wymaganych efektów uczenia się, a materiały wymagane do oceny projektu znajdują się w:
+The `antiscam` folder contains the implementation of all required learning outcomes, and the materials required for project assessment are located in:
 
 - `SYLLABUS_MAPPING.md` - mapping learning outcomes to code and documentation,
 - `docs/ai_syllabus_mapping.md` - syllabus mapping from the `AI_antiscam` folder,
@@ -188,19 +186,19 @@ Folder `antiscam` zawiera implementację wszystkich wymaganych efektów uczenia 
 
 ## Structure
 ```text
-antiscam/                                  Pythonowy silnik AntiScam
-antiscam/ai.py                             Edukacyjne komponenty AI/NLP
-tests/                                     Testy Python
-train.py                                   Trenowanie modelu ML (TF-IDF + Naive Bayes)
+antiscam/                                  Python AntiScam engine
+antiscam/ai.py                             Educational AI/NLP components
+tests/                                     Python tests
+train.py                                   ML model training (TF-IDF + Naive Bayes)
 src/AntiScam.Blog.Api/                    C# ASP.NET Core Blog WebAPI
-src/AntiScam.Blog.Api/wwwroot/            Pliki HTML, CSS i JS
-tests/AntiScam.Blog.Api.Tests/            Testy jednostkowe i integracyjne C#
-docs/                                     Raport, audyt, demo i laboratoria
-docs/ai_labs/                              Laboratoria dla sylabusów AI_antiscam
-SYLLABUS_MAPPING.md                       Mapowanie projektu na sylabusy
-AntiScamBlog.sln                          Rozwiązanie .NET
-README.md                                 Dokumentacja PL
-README.en.md                              Dokumentacja EN
+src/AntiScam.Blog.Api/wwwroot/            HTML, CSS and JS files
+tests/AntiScam.Blog.Api.Tests/            Unit and integration tests C#
+docs/                                     Report, audit, demo and laboratories
+docs/ai_labs/                              Laboratories for AI_antiscam syllabi
+SYLLABUS_MAPPING.md                       Project to syllabi mapping
+AntiScamBlog.sln                          .NET Solution
+README.md                                 Polish documentation
+README.en.md                              English documentation
 ```
 ## C# Configuration WebAPI Blog
 
@@ -215,65 +213,32 @@ The default settings are in `src/AntiScam.Blog.Api/appsettings.json`:
   }
 }
 ```
-Do testów lub lokalnych eksperymentów można nadpisać ścieżkę bazy zmienną środowiskową:
+For testing or local experiments, you can override the database path with an environment variable:
 ```powershell
 $env:ANTISCAM_BLOG_DB="C:\temp\antiscam-blog.sqlite"
 ```
-### Accounts, administration and safe copies
+### HTTPS on the local network (OpenSSL)
 
-`POST /api/auth/register` registers user (`userName`, `password`); the first account receives the `Admin` role, the next one the `User` role.
-
-Login via `POST /api/auth/login` returns the Bearer token.
-
-Hasła są zapisywane wyłącznie jako PBKDF2-HMAC-SHA256.
-
-The administrator passes the token in the `Authorization: Bearer <token>` header and can:
-
-- zablokować konto: `POST /api/admin/users/{id}/block`;
-- zobaczyć także nieaktywne wpisy: `GET /api/admin/posts`;
-- ukryć wpis (miękkie usunięcie): `POST /api/admin/posts/{id}/deactivate` lub `DELETE /api/posts/{id}`;
-- przywrócić wpis: `POST /api/admin/posts/{id}/restore`.
-
-When logging in from an IP address different from the previous session, the application automatically creates an encrypted copy of the database if its content has changed.
-
-Set a secret outside the repository:
+The `tools/generate-https-certificate.ps1` script creates a local CA and a PFX certificate with a private IP address in the SAN, analogous to the reference project. After installing OpenSSL, run:
 ```powershell
-$env:ANTISCAM_BACKUP_KEY = "własny-długi-losowy-sekret"
-```
-The backup and metadata are saved in `secure_backups/backup.enc.json` and `secure_backups/backup_meta.json`.
-
-AES-GCM-256 with a random nonce and an integrity tag is used; the source database is not saved in an explicit form.
-
-Without the key, the backup is intentionally skipped and a warning entry is written to the log.
-
-Backup wykonuje spójny snapshot SQLite przez mechanizm `BackupDatabase`, więc obejmuje wszystkie tabele (wpisy, komentarze, użytkowników i sesje), a nie tylko plik głównej bazy.
-
-If `ANTISCAM_BACKUP_KEY` is not set, the application creates a local secret in `data/antiscam-backup.key` once; the file and directory with copies are excluded from Git.
-
-### HTTPS w sieci lokalnej (OpenSSL)
-
-The `tools/generate-https-certificate.ps1` script creates a local CA and a PFX certificate with a private IP address in the SAN, analogous to the reference project.
-
-After installing OpenSSL, run:
-```powershell
-$env:ANTISCAM_HTTPS_CERT_PASSWORD = "silne-lokalne-haslo"
+$env:ANTISCAM_HTTPS_CERT_PASSWORD = "strong-local-password"
 .\tools\generate-https-certificate.ps1 -PrivateIp "192.168.1.22"
 ```
 Then set `Https:Enabled` to `true` and run the application.
 
-Kestrel będzie nasłuchiwał na `0.0.0.0:5001`, a aplikacja będzie dostępna z LAN jako `https://192.168.1.22:5001`.
+Kestrel will listen on `0.0.0.0:5001` and the application will be accessible from the LAN as `https://192.168.1.22:5001`.
 
-To remove the browser warning on devices on your network, trust the `certs/antiscam-ca.crt` file.
+To remove the browser warning on network devices, trust the `certs/antiscam-ca.crt` file.
 
 Without a certificate, a simple `dotnet run --project .\src\AntiScam.Blog.Api` listens on all interfaces on port 5000.
 
-Dla komputera z adresem `192.168.1.22` użyj wtedy `http://192.168.1.22:5000` z urządzenia w tej samej sieci.
+For a computer with the address `192.168.1.22`, then use `http://192.168.1.22:5000` from a device on the same network.
 
 If the connection from another device is blocked, allow the .NET application to access incoming traffic in Windows Firewall for Private Networks.
 
 ## Updated the English version of the README
 
-Aby odświeżyć `README.en.md` na podstawie polskiego `README.md`, uruchom:
+To refresh `README.en.md` based on the Polish `README.md`, run:
 ```powershell
 .\tools\sync-readme-en.ps1
 ```
@@ -294,13 +259,13 @@ git push origin main
 ```
 ## Troubleshooting / FAQ
 
-### Port jest już w użyciu
+### The port is already in use
 
-**Problem:** "Address already in use" przy uruchamianiu aplikacji.
+**Problem:** "Address already in use" when starting the application.
 
-**Rozwiązanie - C# API:**
+**Solution - C# API:**
 ```powershell
-# Zmień port w appsettings.json lub poprzez zmienną:
+# Change the port in appsettings.json or via environment variable:
 $env:ASPNETCORE_URLS="http://localhost:5002"
 ```
 **Solution - Python API:**
@@ -311,47 +276,38 @@ uvicorn antiscam.api:app --reload --port 8001
 
 **Problem:** "database is locked" during tests or concurrent operations.
 
-**Rozwiązanie:**
-- Upewnij się, że tylko jedna instancja C# API jest uruchomiona
-- Zamknij inne procesy korzystające z bazy (np.
+**Solution:**
+- Make sure only one C# API instance is running
+- Close other processes using the database (e.g.
 
 `sqlite3.exe`)
 - Delete the `.sqlite-journal` file if it exists
 
-### Python dependencies nie instalują się
+### Python dependencies not installing
 
 **Issue:** Errors during `pip install -r requirements-dev.txt`.
 
-**Rozwiązanie:**
+**Solution:**
 ```powershell
-# Uaktualnij pip i setuptools
+# Update pip and setuptools
 python -m pip install --upgrade pip setuptools
-# Czyszczenie cache
+# Clear cache
 pip cache purge
-# Spróbuj ponownie
+# Try again
 pip install -r requirements-dev.txt
 ```
-### Backup key is not set
-
-**Problem:** "Backup key not configured" in the logs even though `ANTISCAM_BACKUP_KEY` is empty.
-
-**Solution:**
-- The application automatically creates a local key in `data/antiscam-backup.key`
-- To use your own key, set the `ANTISCAM_BACKUP_KEY` variable before running
-- The file `data/antiscam-backup.key` and the `secure_backups/` directory are excluded from Git
-
 ### Tests fail
 
 **Issue:** Errors in `pytest` or `dotnet test`.
 
 **Solution:**
 ```powershell
-# Zczyść cache i zbuduj na nowo
-rm -Force -Recurse bin, obj  # lub Remove-Item
+# Clean cache and rebuild
+rm -Force -Recurse bin, obj  # or Remove-Item
 rm -Force .pytest_cache
 dotnet clean
 dotnet build
-pytest --tb=short  # Szczegółowy output
+pytest --tb=short  # Detailed output
 ```
 ### OpenSSL certificate issues
 
@@ -362,6 +318,6 @@ pytest --tb=short  # Szczegółowy output
 - Make sure OpenSSL is installed: `openssl version`
 - Trust CA certificate: `certs/antiscam-ca.crt` (add to Windows Certificate Store)
 
-## Licencja
+## License
 
 The project is available under the MIT license.

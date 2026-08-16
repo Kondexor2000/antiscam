@@ -28,23 +28,6 @@
     </section>
 
     <aside class="panel form-panel">
-      <h2>Konto</h2>
-      <form id="auth-form">
-        <label>Nazwa użytkownika<input name="userName" required minlength="3" maxlength="100"></label>
-        <label>Hasło<input name="password" type="password" required minlength="12" autocomplete="current-password"></label>
-        <div class="auth-actions"><button type="submit" data-action="login">Zaloguj</button><button type="submit" data-action="register">Zarejestruj</button><button type="button" id="logout-button">Wyloguj</button></div>
-      </form>
-      <p id="auth-status" class="status" role="status"></p>
-
-      <section id="admin-panel" class="admin-panel" hidden>
-        <h2>Panel administratora</h2>
-        <p id="admin-status" class="status" role="status"></p>
-        <h3>Użytkownicy</h3>
-        <div id="admin-users" class="admin-list"></div>
-        <h3>Posty</h3>
-        <div id="admin-posts" class="admin-list"></div>
-      </section>
-
       <h2>Dodaj wpis</h2>
       <form id="post-form">
         <label>
@@ -59,13 +42,8 @@
           Treść
           <textarea id="content" name="content" required></textarea>
         </label>
-        <fieldset class="publication-identity">
-          <legend>Publikuj jako</legend>
-          <label><input type="radio" name="post-author-mode" value="guest" checked> Gość</label>
-          <label><input type="radio" name="post-author-mode" value="user" disabled> Zalogowany użytkownik</label>
-        </fieldset>
         <label>
-          <span class="author-label">Nazwa gościa</span>
+          Autor
           <input id="author" name="author" required maxlength="100" value="Czytelnik">
         </label>
         <button type="submit">Opublikuj</button>
@@ -74,6 +52,6 @@
     </aside>
   </main>
 
-  <script src="/app.js?v=20260802-author-mode"></script>
+  <script src="/app.js?v=20260816-no-auth"></script>
 </body>
 </html>

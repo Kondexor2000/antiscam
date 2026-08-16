@@ -2,7 +2,6 @@ using AntiScam.Blog.Api;
 using AntiScam.Blog.Api.Data;
 using AntiScam.Blog.Api.Models;
 using AntiScam.Blog.Api.Services;
-using AntiScam.Blog.Api.Security;
 using System.Net;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -27,14 +26,6 @@ if (!string.IsNullOrWhiteSpace(mongoConnectionString))
 {
     noSqlOptions = noSqlOptions with { ConnectionString = mongoConnectionString };
 }
-var backupOptions = builder.Configuration.GetSection("Backup").Get<BackupOptions>() ?? new BackupOptions();
-backupOptions = backupOptions with
-{
-    DirectoryPath = ResolvePath(backupOptions.DirectoryPath, workspacePath),
-    KeyFilePath = ResolvePath(backupOptions.KeyFilePath, workspacePath)
-};
-var backupKey = Environment.GetEnvironmentVariable("ANTISCAM_BACKUP_KEY");
-if (!string.IsNullOrWhiteSpace(backupKey)) backupOptions = backupOptions with { EncryptionKey = backupKey };
 var httpsOptions = builder.Configuration.GetSection("Https").Get<HttpsOptions>() ?? new HttpsOptions();
 httpsOptions = httpsOptions with { CertificatePath = ResolvePath(httpsOptions.CertificatePath, workspacePath) };
 var networkOptions = builder.Configuration.GetSection("Network").Get<NetworkOptions>() ?? new NetworkOptions();
@@ -57,7 +48,6 @@ else if (networkOptions.BindToLan)
 builder.Services.AddSingleton(new WorkspaceOptions(workspacePath));
 builder.Services.AddSingleton(new BlogDatabaseOptions(databasePath));
 builder.Services.AddSingleton(noSqlOptions);
-builder.Services.AddSingleton(backupOptions);
 builder.Services.AddSingleton<ISlugGenerator, SlugGenerator>();
 builder.Services.AddSingleton<IRiskAnalyzer, RiskAnalyzer>();
 builder.Services.AddSingleton<IBlockExplanationProvider, PythonAiBlockExplanationProvider>();
@@ -68,10 +58,6 @@ builder.Services.AddSingleton<IScamIncidentStore>(serviceProvider =>
             serviceProvider.GetRequiredService<ILogger<MongoScamIncidentStore>>())
         : new NullScamIncidentStore());
 builder.Services.AddSingleton<IBlogRepository, SqliteBlogRepository>();
-builder.Services.AddSingleton<IUserRepository, SqliteUserRepository>();
-builder.Services.AddSingleton<IPasswordHasher, SecurePasswordHasher>();
-builder.Services.AddSingleton<ITokenService, TokenService>();
-builder.Services.AddSingleton<ISecureBackupService, SecureBackupService>();
 
 var app = builder.Build();
 
@@ -132,67 +118,6 @@ app.MapGet("/api/posts", async (IBlogRepository blogRepository) =>
     var posts = await blogRepository.GetAllAsync();
     return Results.Ok(posts);
 });
-
-app.MapPost("/api/auth/register", async (RegisterInput input, IUserRepository users, IPasswordHasher passwords, CancellationToken cancellationToken) =>
-{
-    if (string.IsNullOrWhiteSpace(input.UserName) || input.UserName.Trim().Length is < 3 or > 100 || string.IsNullOrWhiteSpace(input.Password) || input.Password.Length < 12)
-        return Results.ValidationProblem(new Dictionary<string, string[]> { ["credentials"] = ["Nazwa użytkownika musi mieć 3–100 znaków, a hasło co najmniej 12 znaków."] });
-    var password = passwords.Hash(input.Password);
-    var user = await users.RegisterAsync(input, password.Algorithm, password.Iterations, password.Salt, password.Hash, cancellationToken);
-    return user is null ? Results.Conflict(new { message = "Nazwa użytkownika jest już zajęta." }) : Results.Created($"/api/users/{user.Id}", user);
-});
-
-app.MapPost("/api/auth/login", async (HttpContext context, LoginInput input, IUserRepository users, IPasswordHasher passwords, ITokenService tokens, ISecureBackupService backup, ILoggerFactory loggers, CancellationToken cancellationToken) =>
-{
-    var stored = await users.GetForLoginAsync(input.UserName, cancellationToken);
-    if (stored is null || !passwords.Verify(input.Password, new PasswordHashResult(stored.Value.Algorithm, stored.Value.Iterations, stored.Value.Salt, stored.Value.Hash))) return Results.Unauthorized();
-    if (stored.Value.User.IsBlocked) return Results.StatusCode(StatusCodes.Status403Forbidden);
-    var remoteIp = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-    var shouldBackup = await users.HasLoggedInFromDifferentIpAsync(stored.Value.User.Id, remoteIp, cancellationToken);
-    var token = tokens.Create();
-    await users.CreateSessionAsync(stored.Value.User.Id, tokens.Hash(token), remoteIp, cancellationToken);
-    if (shouldBackup)
-    {
-        try { await backup.CreateIfChangedAsync(cancellationToken); }
-        catch (Exception exception) { loggers.CreateLogger("SecureBackup").LogError(exception, "Automatic secure backup failed after IP change."); }
-    }
-    return Results.Ok(new AuthResponse(token, new AuthenticatedUser(stored.Value.User.Id, stored.Value.User.UserName, stored.Value.User.Role, false)));
-});
-
-app.MapPost("/api/auth/logout", async (HttpContext context, IUserRepository users, ITokenService tokens, CancellationToken cancellationToken) =>
-{
-    var authorization = context.Request.Headers.Authorization.ToString();
-    if (!authorization.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)) return Results.Unauthorized();
-    await users.RevokeSessionAsync(tokens.Hash(authorization[7..].Trim()), cancellationToken);
-    return Results.NoContent();
-});
-
-app.MapPost("/api/admin/users/{id:int}/block", async (int id, HttpContext context, IUserRepository users, ITokenService tokens, CancellationToken cancellationToken) =>
-{
-    var admin = await GetAdminAsync(context, users, tokens, cancellationToken);
-    if (admin is null) return Results.Unauthorized();
-    if (admin.Id == id) return Results.BadRequest(new { message = "Administrator nie może zablokować własnego konta." });
-    return await users.BlockAsync(id, cancellationToken) ? Results.NoContent() : Results.NotFound();
-});
-
-app.MapPost("/api/admin/users/{id:int}/unblock", async (int id, HttpContext context, IUserRepository users, ITokenService tokens, CancellationToken cancellationToken) =>
-{
-    var admin = await GetAdminAsync(context, users, tokens, cancellationToken);
-    if (admin is null) return Results.Unauthorized();
-    return await users.UnblockAsync(id, cancellationToken) ? Results.NoContent() : Results.NotFound();
-});
-
-app.MapGet("/api/admin/posts", async (HttpContext context, IBlogRepository posts, IUserRepository users, ITokenService tokens, CancellationToken cancellationToken) =>
-    await GetAdminAsync(context, users, tokens, cancellationToken) is null ? Results.Unauthorized() : Results.Ok(await posts.GetAllAsync(true, cancellationToken)));
-
-app.MapGet("/api/admin/users", async (HttpContext context, IUserRepository users, ITokenService tokens, CancellationToken cancellationToken) =>
-    await GetAdminAsync(context, users, tokens, cancellationToken) is null ? Results.Unauthorized() : Results.Ok(await users.GetAllAsync(cancellationToken)));
-
-app.MapPost("/api/admin/posts/{id:int}/deactivate", async (int id, HttpContext context, IBlogRepository posts, IUserRepository users, ITokenService tokens, CancellationToken cancellationToken) =>
-    await GetAdminAsync(context, users, tokens, cancellationToken) is null ? Results.Unauthorized() : await posts.DeactivateAsync(id, cancellationToken) ? Results.NoContent() : Results.NotFound());
-
-app.MapPost("/api/admin/posts/{id:int}/restore", async (int id, HttpContext context, IBlogRepository posts, IUserRepository users, ITokenService tokens, CancellationToken cancellationToken) =>
-    await GetAdminAsync(context, users, tokens, cancellationToken) is null ? Results.Unauthorized() : await posts.RestoreAsync(id, cancellationToken) ? Results.NoContent() : Results.NotFound());
 
 app.MapGet("/api/posts/latest", async (IBlogRepository blogRepository) =>
 {
@@ -303,13 +228,6 @@ app.MapPut("/api/posts/{id:int}", async (
     return updated is null ? Results.NotFound() : Results.Ok(updated);
 });
 
-app.MapDelete("/api/posts/{id:int}", async (int id, HttpContext context, IBlogRepository blogRepository, IUserRepository users, ITokenService tokens, CancellationToken cancellationToken) =>
-{
-    if (await GetAdminAsync(context, users, tokens, cancellationToken) is null) return Results.Unauthorized();
-    var deleted = await blogRepository.DeactivateAsync(id, cancellationToken);
-    return deleted ? Results.NoContent() : Results.NotFound();
-});
-
 app.Run();
 
 public partial class Program
@@ -317,11 +235,4 @@ public partial class Program
     private static string ResolvePath(string path, string basePath) =>
         Path.IsPathRooted(path) ? path : Path.GetFullPath(path, basePath);
 
-    private static async Task<AuthenticatedUser?> GetAdminAsync(HttpContext context, IUserRepository users, ITokenService tokens, CancellationToken cancellationToken)
-    {
-        var authorization = context.Request.Headers.Authorization.ToString();
-        if (!authorization.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)) return null;
-        var user = await users.GetByTokenHashAsync(tokens.Hash(authorization[7..].Trim()), cancellationToken);
-        return user is { IsBlocked: false, Role: "Admin" } ? user : null;
-    }
 }
