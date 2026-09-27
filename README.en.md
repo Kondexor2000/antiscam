@@ -7,6 +7,10 @@ AntiScam is a repository with two parts:
 
 The new blog is connected to the working folder, and the default SQLite database is created in `data/antiscam-blog.sqlite` (relative to the project directory).
 
+## Extension suggestions
+
+git clone https://github.com/Kondexor2000/antihacker.git
+
 ## Requirements
 
 - Python 3.10+
