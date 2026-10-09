@@ -1,8 +1,13 @@
 using AntiScam.Blog.Api;
 using AntiScam.Blog.Api.Data;
+using AntiScam.Blog.Api.Gateway;
 using AntiScam.Blog.Api.Models;
+using AntiScam.Blog.Api.Security;
 using AntiScam.Blog.Api.Services;
+using Microsoft.Data.Sqlite;
 using System.Net;
+using System.Diagnostics;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,6 +23,14 @@ var databasePath = !string.IsNullOrWhiteSpace(environmentDatabasePath)
     : !string.IsNullOrWhiteSpace(configuredDatabasePath)
         ? ResolvePath(configuredDatabasePath, workspacePath)
         : Path.Combine(workspacePath, "data", "antiscam-blog.sqlite");
+var managementKey = builder.Configuration["ControlPlane:ManagementKey"]
+    ?? builder.Configuration["ANTISCAM_CONTROL_PLANE_KEY"]
+    ?? Environment.GetEnvironmentVariable("ANTISCAM_CONTROL_PLANE_KEY")
+    ?? string.Empty;
+if (!string.IsNullOrEmpty(managementKey) && Encoding.UTF8.GetByteCount(managementKey) < 32)
+{
+    throw new InvalidOperationException("ANTISCAM_CONTROL_PLANE_KEY must contain at least 32 bytes.");
+}
 
 var noSqlOptions = builder.Configuration.GetSection("NoSql").Get<NoSqlDatabaseOptions>()
     ?? new NoSqlDatabaseOptions();
@@ -47,6 +60,11 @@ else if (networkOptions.BindToLan)
 
 builder.Services.AddSingleton(new WorkspaceOptions(workspacePath));
 builder.Services.AddSingleton(new BlogDatabaseOptions(databasePath));
+builder.Services.AddSingleton<GatewayApiRepository>();
+builder.Services.AddSingleton(new GatewayMetrics());
+builder.Services.AddSingleton<BlogRequestMetrics>();
+builder.Services.AddHttpClient("gateway")
+    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
 builder.Services.AddSingleton(noSqlOptions);
 builder.Services.AddSingleton<ISlugGenerator, SlugGenerator>();
 builder.Services.AddSingleton<IRiskAnalyzer, RiskAnalyzer>();
@@ -72,16 +90,240 @@ app.UseStaticFiles(new StaticFileOptions
     }
 });
 
+var blogRequestMetrics = app.Services.GetRequiredService<BlogRequestMetrics>();
+app.Use(async (context, next) =>
+{
+    if (!context.Request.Path.StartsWithSegments("/api/posts"))
+    {
+        await next();
+        return;
+    }
+
+    var startedAt = Stopwatch.GetTimestamp();
+    context.Response.OnCompleted(() =>
+    {
+        blogRequestMetrics.Record(Stopwatch.GetElapsedTime(startedAt), context.Response.StatusCode);
+        return Task.CompletedTask;
+    });
+    await next();
+});
+
 var repository = app.Services.GetRequiredService<IBlogRepository>();
 await repository.InitializeAsync();
+await app.Services.GetRequiredService<GatewayApiRepository>().InitializeAsync();
+
+IResult? RequireManagementKey(HttpRequest request)
+{
+    if (string.IsNullOrEmpty(managementKey))
+    {
+        return Results.Problem(
+            "Set ANTISCAM_CONTROL_PLANE_KEY before using the Control Plane management API.",
+            statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+
+    return GatewayCredential.HasManagementAccess(request, managementKey)
+        ? null
+        : Results.Unauthorized();
+}
 
 app.MapGet("/api/health", () => Results.Ok(new
 {
     status = "ok",
-    application = "AntiScam Blog API",
+    application = "AntiScam API Platform",
     storage = "SQLite",
     secondaryStorage = noSqlOptions.Enabled ? "MongoDB" : "disabled"
 }));
+
+app.MapGet("/api/gateway/apis", async (
+    HttpRequest request,
+    GatewayApiRepository gatewayRepository,
+    GatewayMetrics metrics,
+    CancellationToken cancellationToken) =>
+{
+    var accessResult = RequireManagementKey(request);
+    if (accessResult is not null)
+    {
+        return accessResult;
+    }
+
+    var apis = await gatewayRepository.GetAllAsync(cancellationToken);
+    return Results.Ok(apis.Select(api => ToGatewayApiView(api, metrics)));
+});
+
+app.MapGet("/api/gateway/apis/{id}", async (
+    string id,
+    HttpRequest request,
+    GatewayApiRepository gatewayRepository,
+    GatewayMetrics metrics,
+    CancellationToken cancellationToken) =>
+{
+    var accessResult = RequireManagementKey(request);
+    if (accessResult is not null)
+    {
+        return accessResult;
+    }
+
+    var api = await gatewayRepository.GetByIdAsync(id, cancellationToken);
+    return api is null
+        ? Results.NotFound()
+        : Results.Ok(ToGatewayApiView(api, metrics));
+});
+
+app.MapPost("/api/gateway/apis", async (
+    HttpRequest request,
+    GatewayApiInput input,
+    GatewayApiRepository gatewayRepository,
+    CancellationToken cancellationToken) =>
+{
+    var accessResult = RequireManagementKey(request);
+    if (accessResult is not null)
+    {
+        return accessResult;
+    }
+
+    var validation = GatewayApiInputValidator.Validate(input);
+    if (validation.Count > 0)
+    {
+        return Results.ValidationProblem(validation);
+    }
+
+    var apiKey = GatewayCredential.CreateApiKey();
+    GatewayApi api;
+    try
+    {
+        api = await gatewayRepository.CreateAsync(input, GatewayCredential.Hash(apiKey), cancellationToken);
+    }
+    catch (SqliteException exception) when (exception.SqliteErrorCode == 19)
+    {
+        return Results.Conflict(new { message = "An API with this name is already registered." });
+    }
+
+    return Results.Created(
+        $"/api/gateway/apis/{api.Id}",
+        new { api = ToGatewayApiView(api, app.Services.GetRequiredService<GatewayMetrics>()), apiKey });
+});
+
+app.MapPut("/api/gateway/apis/{id}", async (
+    string id,
+    HttpRequest request,
+    GatewayApiInput input,
+    GatewayApiRepository gatewayRepository,
+    CancellationToken cancellationToken) =>
+{
+    var accessResult = RequireManagementKey(request);
+    if (accessResult is not null)
+    {
+        return accessResult;
+    }
+
+    var validation = GatewayApiInputValidator.Validate(input);
+    if (validation.Count > 0)
+    {
+        return Results.ValidationProblem(validation);
+    }
+
+    try
+    {
+        var updated = await gatewayRepository.UpdateAsync(id, input, cancellationToken);
+        return updated
+            ? Results.Ok(new { message = "API configuration updated." })
+            : Results.NotFound();
+    }
+    catch (SqliteException exception) when (exception.SqliteErrorCode == 19)
+    {
+        return Results.Conflict(new { message = "An API with this name is already registered." });
+    }
+});
+
+app.MapPost("/api/gateway/apis/{id}/rotate-key", async (
+    string id,
+    HttpRequest request,
+    GatewayApiRepository gatewayRepository,
+    CancellationToken cancellationToken) =>
+{
+    var accessResult = RequireManagementKey(request);
+    if (accessResult is not null)
+    {
+        return accessResult;
+    }
+
+    var api = await gatewayRepository.GetByIdAsync(id, cancellationToken);
+    if (api is null)
+    {
+        return Results.NotFound();
+    }
+
+    var apiKey = GatewayCredential.CreateApiKey();
+    await gatewayRepository.UpdateApiKeyHashAsync(id, GatewayCredential.Hash(apiKey), cancellationToken);
+    return Results.Ok(new { apiKey });
+});
+
+app.MapDelete("/api/gateway/apis/{id}", async (
+    string id,
+    HttpRequest request,
+    GatewayApiRepository gatewayRepository,
+    CancellationToken cancellationToken) =>
+{
+    var accessResult = RequireManagementKey(request);
+    if (accessResult is not null)
+    {
+        return accessResult;
+    }
+
+    return await gatewayRepository.DeleteAsync(id, cancellationToken)
+        ? Results.NoContent()
+        : Results.NotFound();
+});
+
+app.MapGet("/api/gateway/metrics", (
+    HttpRequest request,
+    GatewayMetrics metrics) =>
+{
+    var accessResult = RequireManagementKey(request);
+    return accessResult ?? Results.Ok(metrics.Snapshot());
+});
+
+app.MapGet("/api/blog/metrics", (
+    HttpRequest request,
+    BlogRequestMetrics metrics) =>
+{
+    var accessResult = RequireManagementKey(request);
+    return accessResult ?? Results.Ok(metrics.Snapshot());
+});
+
+app.MapMethods("/gateway/{apiId}/{**path}", ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], async Task (
+    HttpContext context,
+    string apiId,
+    string? path,
+    GatewayApiRepository gatewayRepository,
+    GatewayMetrics metrics,
+    IHttpClientFactory httpClientFactory,
+    ILogger<Program> logger) =>
+{
+    await GatewayProxy.ForwardAsync(
+        context,
+        apiId,
+        path,
+        gatewayRepository,
+        metrics,
+        httpClientFactory,
+        logger);
+});
+
+GatewayApiView ToGatewayApiView(GatewayApi api, GatewayMetrics metrics)
+{
+    var (requests, failedRequests, averageLatencyMs) = metrics.ForApi(api.Id);
+    return new GatewayApiView(
+        api.Id,
+        api.Name,
+        api.Version,
+        api.UpstreamUrl,
+        $"/gateway/{api.Id}",
+        requests,
+        failedRequests,
+        averageLatencyMs,
+        api.Enabled ? "Aktywne" : "Wyłączone");
+}
 
 app.MapGet("/api/storage", (BlogDatabaseOptions sqlite, NoSqlDatabaseOptions mongo) => Results.Ok(new
 {

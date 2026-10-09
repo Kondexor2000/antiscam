@@ -1,9 +1,10 @@
-#AntiScam
+# AntiScam
 
-AntiScam is a repository with two parts:
+AntiScam is a repository with three parts:
 
 - Python/FastAPI engine for assessing the risk of phishing messages,
 - C# ASP.NET Core WebAPI blog with HTML files and SQLite database.
+- AntiScam API Platform with a persistent API registry and reverse proxy.
 
 The new blog is connected to the working folder, and the default SQLite database is created in `data/antiscam-blog.sqlite` (relative to the project directory).
 
@@ -25,13 +26,28 @@ dotnet run --project src\AntiScam.Blog.Api\AntiScam.Blog.Api.csproj
 ```
 Once the application is launched, it is available at the address displayed by `dotnet run`, usually `http://localhost:5000` or `http://localhost:5080`.
 
-### HTML Frontend
+### API Control Plane
+
+The `/` dashboard reads the live API catalog and request counters from the running backend. Blog API requests (`/api/posts` and comments) and gateway forwards (`/gateway/{id}/{path}`) are counted separately. API configurations are persisted in the blog's SQLite database. Each API receives a random client key whose hash is stored in SQLite.
+
+Set an administrator key before starting the application (at least 32 random bytes). Management endpoints return `503` when no key is configured:
+
+```powershell
+$env:ANTISCAM_CONTROL_PLANE_KEY = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+dotnet run --project src\AntiScam.Blog.Api\AntiScam.Blog.Api.csproj
+```
+
+The dashboard prompts for this key and keeps it only in the browser session. Control Plane endpoints require the `X-Control-Plane-Key` header. A client key is generated during API registration or rotation, shown only once, and required in the `X-API-Key` header when calling `/gateway/{id}/{path}`.
+
+This is a working single-instance MVP, not a production platform: metrics are held in memory and reset on restart; they are not shared across instances. Per-API keys are shared service secrets, not a replacement for OAuth2/OIDC, roles, or per-client quotas. WAF/DDoS protection, distributed rate limiting, and an upstream secret store are not included. Restrict network access to the admin interface, use HTTPS, and register only trusted upstream destinations.
+
+### Blog frontend
 
 Open in browser:
 ```text
-/
+/blog.html
 ```
-The website loads entries from the API and allows you to add a new blog entry.
+The blog frontend loads entries from the API and allows you to add a new blog entry.
 
 Before publication, C# WebAPI analyzes the title, abstract, content and author.
 
@@ -60,6 +76,15 @@ If the database is disabled or unavailable, the response is an empty list.
 ### Blog endpoints
 ```text
 GET    /api/health
+GET    /api/gateway/apis
+GET    /api/gateway/apis/{id}
+POST   /api/gateway/apis
+PUT    /api/gateway/apis/{id}
+DELETE /api/gateway/apis/{id}
+POST   /api/gateway/apis/{id}/rotate-key
+GET    /api/gateway/metrics
+GET    /api/blog/metrics
+ANY    /gateway/{id}/{path}
 GET    /api/storage
 GET    /api/incidents?limit=50
 GET    /api/workspace
@@ -162,13 +187,14 @@ Full list of environment variables used in the project:
 
 | Variable | Description | Default | Example |
 |---------|------|----------|----------|
-| `ANTISCAM_BLOG_DB` | Path to the blog's SQLite database | `data/antiscam-blog.sqlite` | `C:\temp\antiscam-blog.sqlite` |
+| `ANTISCAM_BLOG_DB` | Path to the blog's SQLite database | `data/antiscam-blog.sqlite` | .\data\antiscam-blog.sqlite |
+| `ANTISCAM_CONTROL_PLANE_KEY` | API Control Plane administrator key | unset | generate 32 random bytes |
 | `ANTISCAM_MONGO_CONNECTION_STRING` | MongoDB server address (optional) | - | `mongodb+srv://user:pass@cluster.mongodb.net` |
 | `ANTISCAM_HTTPS_CERT_PASSWORD` | HTTPS (OpenSSL) certificate password | - | `strong-local-password` |
 
 **Setting Variables in PowerShell:**
 ```powershell
-$env:ANTISCAM_BLOG_DB="C:\temp\antiscam-blog.sqlite"
+$env:ANTISCAM_BLOG_DB = '.\data\antiscam-blog.sqlite'
 ```
 ## Compliance with Syllabi
 
@@ -210,16 +236,16 @@ The default settings are in `src/AntiScam.Blog.Api/appsettings.json`:
 ```json
 {
   "Workspace": {
-    "RootPath": "C:\\Users\\kondz\\antiscam"
+    "RootPath": "."
   },
   "Blog": {
-    "DatabasePath": "C:\\Users\\kondz\\antiscam\\data\\antiscam-blog.sqlite"
+    "DatabasePath": "data/antiscam-blog.sqlite"
   }
 }
 ```
 For testing or local experiments, you can override the database path with an environment variable:
 ```powershell
-$env:ANTISCAM_BLOG_DB="C:\temp\antiscam-blog.sqlite"
+$env:ANTISCAM_BLOG_DB = '.\data\antiscam-blog.sqlite'
 ```
 ### HTTPS on the local network (OpenSSL)
 

@@ -2,11 +2,14 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using AntiScam.Blog.Api.Models;
+using AntiScam.Blog.Api.Gateway;
 
 namespace AntiScam.Blog.Api.Tests.Integration;
 
 public sealed class BlogApiTests : IClassFixture<BlogApiFactory>
 {
+    public const string ManagementKey = "test-control-plane-management-key";
+
     private readonly HttpClient _client;
 
     public BlogApiTests(BlogApiFactory factory)
@@ -32,6 +35,28 @@ public sealed class BlogApiTests : IClassFixture<BlogApiFactory>
         Assert.NotNull(allPosts);
         Assert.NotNull(latestPost);
         Assert.Equal(allPosts[0].Id, latestPost.Id);
+    }
+
+    [Fact]
+    public async Task BlogApiMetrics_CountsBlogEndpointRequestsSeparately()
+    {
+        using var initialMetricsRequest = new HttpRequestMessage(HttpMethod.Get, "/api/blog/metrics");
+        initialMetricsRequest.Headers.Add("X-Control-Plane-Key", ManagementKey);
+        using var initialMetricsResponse = await _client.SendAsync(initialMetricsRequest);
+        initialMetricsResponse.EnsureSuccessStatusCode();
+        using var initialMetrics = JsonDocument.Parse(await initialMetricsResponse.Content.ReadAsStringAsync());
+        var initialRequests = initialMetrics.RootElement.GetProperty("requests").GetInt64();
+
+        using var blogResponse = await _client.GetAsync("/api/posts/latest");
+        Assert.True(blogResponse.IsSuccessStatusCode || blogResponse.StatusCode == HttpStatusCode.NotFound);
+
+        using var metricsRequest = new HttpRequestMessage(HttpMethod.Get, "/api/blog/metrics");
+        metricsRequest.Headers.Add("X-Control-Plane-Key", ManagementKey);
+        using var metricsResponse = await _client.SendAsync(metricsRequest);
+        metricsResponse.EnsureSuccessStatusCode();
+        using var metrics = JsonDocument.Parse(await metricsResponse.Content.ReadAsStringAsync());
+
+        Assert.True(metrics.RootElement.GetProperty("requests").GetInt64() >= initialRequests + 1);
     }
 
     [Fact]
@@ -167,9 +192,139 @@ public sealed class BlogApiTests : IClassFixture<BlogApiFactory>
     {
         var html = await _client.GetStringAsync("/");
 
-        Assert.Contains("AntiScam Blog", html);
-        Assert.Contains("href=\"/?view=all\"", html);
+        Assert.Contains("API Control Plane", html);
+        Assert.Contains("href=\"/blog.html\"", html);
         Assert.Contains("Blog bezpieczeństwa", html);
+        Assert.Contains("id=\"api-dialog\"", html);
+        Assert.Contains("id=\"key-dialog\"", html);
+        Assert.Contains("id=\"api-upstream\"", html);
+        Assert.Contains("id=\"request-dialog\"", html);
+        Assert.Contains("id=\"request-form\"", html);
+        Assert.Contains("id=\"request-api-key\"", html);
+        Assert.Contains("id=\"request-method\"", html);
+        Assert.Contains("id=\"request-response\"", html);
     }
 
+    [Fact]
+    public async Task GatewayManagement_RequiresControlPlaneKey()
+    {
+        using var response = await _client.GetAsync("/api/gateway/apis");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GatewayApi_RegistersProxyWithGeneratedClientKeyAndRecordsMetrics()
+    {
+        var input = new GatewayApiInput(
+            $"Payments {Guid.NewGuid():N}",
+            "v1",
+            "http://upstream.test/base");
+        using var createRequest = new HttpRequestMessage(HttpMethod.Post, "/api/gateway/apis")
+        {
+            Content = JsonContent.Create(input)
+        };
+        createRequest.Headers.Add("X-Control-Plane-Key", ManagementKey);
+
+        using var createResponse = await _client.SendAsync(createRequest);
+
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+        using var created = JsonDocument.Parse(await createResponse.Content.ReadAsStringAsync());
+        var api = created.RootElement.GetProperty("api");
+        var apiId = api.GetProperty("id").GetString()!;
+        var apiKey = created.RootElement.GetProperty("apiKey").GetString()!;
+        Assert.Equal($"/gateway/{apiId}", api.GetProperty("gatewayUrl").GetString());
+
+        using var detailRequest = new HttpRequestMessage(HttpMethod.Get, $"/api/gateway/apis/{apiId}");
+        detailRequest.Headers.Add("X-Control-Plane-Key", ManagementKey);
+        using var detailResponse = await _client.SendAsync(detailRequest);
+        Assert.Equal(HttpStatusCode.OK, detailResponse.StatusCode);
+
+        using var missingKey = await _client.GetAsync($"/gateway/{apiId}/orders?take=2");
+        Assert.Equal(HttpStatusCode.Unauthorized, missingKey.StatusCode);
+
+        using var proxyRequest = new HttpRequestMessage(HttpMethod.Get, $"/gateway/{apiId}/orders?take=2");
+        proxyRequest.Headers.Add("X-API-Key", apiKey);
+        using var proxyResponse = await _client.SendAsync(proxyRequest);
+
+        Assert.Equal(HttpStatusCode.OK, proxyResponse.StatusCode);
+        Assert.Equal("/base/orders?take=2", await proxyResponse.Content.ReadAsStringAsync());
+
+        using var listRequest = new HttpRequestMessage(HttpMethod.Get, "/api/gateway/apis");
+        listRequest.Headers.Add("X-Control-Plane-Key", ManagementKey);
+        using var listResponse = await _client.SendAsync(listRequest);
+        using var catalog = JsonDocument.Parse(await listResponse.Content.ReadAsStringAsync());
+        var registered = catalog.RootElement.EnumerateArray()
+            .Single(item => item.GetProperty("id").GetString() == apiId);
+        Assert.Equal(2, registered.GetProperty("requests").GetInt64());
+        Assert.Equal(1, registered.GetProperty("failedRequests").GetInt64());
+
+        using var metricsRequest = new HttpRequestMessage(HttpMethod.Get, "/api/gateway/metrics");
+        metricsRequest.Headers.Add("X-Control-Plane-Key", ManagementKey);
+        using var metricsResponse = await _client.SendAsync(metricsRequest);
+        using var metrics = JsonDocument.Parse(await metricsResponse.Content.ReadAsStringAsync());
+        Assert.True(metrics.RootElement.GetProperty("requests").GetInt64() >= 2);
+    }
+
+    [Fact]
+    public async Task GatewayApi_RejectsInvalidUpstreamAddress()
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/gateway/apis")
+        {
+            Content = JsonContent.Create(new GatewayApiInput("Invalid API", "v1", "file:///etc/passwd"))
+        };
+        request.Headers.Add("X-Control-Plane-Key", ManagementKey);
+
+        using var response = await _client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GatewayApi_CanUpdateRotateKeyAndDeleteRegistration()
+    {
+        var input = new GatewayApiInput(
+            $"Orders {Guid.NewGuid():N}",
+            "v1",
+            "http://upstream.test/orders");
+        using var createRequest = new HttpRequestMessage(HttpMethod.Post, "/api/gateway/apis")
+        {
+            Content = JsonContent.Create(input)
+        };
+        createRequest.Headers.Add("X-Control-Plane-Key", ManagementKey);
+        using var createResponse = await _client.SendAsync(createRequest);
+        using var created = JsonDocument.Parse(await createResponse.Content.ReadAsStringAsync());
+        var apiId = created.RootElement.GetProperty("api").GetProperty("id").GetString()!;
+        var oldApiKey = created.RootElement.GetProperty("apiKey").GetString()!;
+
+        using var updateRequest = new HttpRequestMessage(HttpMethod.Put, $"/api/gateway/apis/{apiId}")
+        {
+            Content = JsonContent.Create(input with { Version = "v2", Enabled = false })
+        };
+        updateRequest.Headers.Add("X-Control-Plane-Key", ManagementKey);
+        using var updateResponse = await _client.SendAsync(updateRequest);
+        Assert.Equal(HttpStatusCode.OK, updateResponse.StatusCode);
+
+        using var disabledRequest = new HttpRequestMessage(HttpMethod.Get, $"/gateway/{apiId}/health");
+        disabledRequest.Headers.Add("X-API-Key", oldApiKey);
+        using var disabledResponse = await _client.SendAsync(disabledRequest);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, disabledResponse.StatusCode);
+
+        using var rotateRequest = new HttpRequestMessage(HttpMethod.Post, $"/api/gateway/apis/{apiId}/rotate-key");
+        rotateRequest.Headers.Add("X-Control-Plane-Key", ManagementKey);
+        using var rotateResponse = await _client.SendAsync(rotateRequest);
+        using var rotated = JsonDocument.Parse(await rotateResponse.Content.ReadAsStringAsync());
+        var newApiKey = rotated.RootElement.GetProperty("apiKey").GetString()!;
+        Assert.NotEqual(oldApiKey, newApiKey);
+
+        using var deleteRequest = new HttpRequestMessage(HttpMethod.Delete, $"/api/gateway/apis/{apiId}");
+        deleteRequest.Headers.Add("X-Control-Plane-Key", ManagementKey);
+        using var deleteResponse = await _client.SendAsync(deleteRequest);
+        Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
+
+        using var deletedRequest = new HttpRequestMessage(HttpMethod.Get, $"/gateway/{apiId}/health");
+        deletedRequest.Headers.Add("X-API-Key", newApiKey);
+        using var deletedResponse = await _client.SendAsync(deletedRequest);
+        Assert.Equal(HttpStatusCode.NotFound, deletedResponse.StatusCode);
+    }
 }

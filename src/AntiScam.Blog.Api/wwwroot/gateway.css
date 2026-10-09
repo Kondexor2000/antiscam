@@ -1,0 +1,53 @@
+.api-target{display:block;margin:4px 0 0 29px;color:#8993a2;font:9px "DM Mono",monospace;overflow-wrap:anywhere}
+.api-actions{white-space:nowrap}
+.api-actions .text-button{margin-right:8px;padding:0;border:0;background:transparent;color:#536bc2;font:600 9px Manrope,sans-serif;cursor:pointer}
+.api-actions .text-button:last-child{color:#bf5b51}
+.gateway-live-pill{border-color:#d5eee3;background:#f2fbf6;color:#328666}
+.gateway-live-pill i{background:#43b884}
+.live-note{display:flex;align-items:center;gap:8px;margin:-9px 0 13px;color:#667287;font-size:9px}
+.live-note span{width:14px;height:14px;display:grid;place-items:center;border:1px solid #d5deec;border-radius:50%;font:9px Georgia,serif}
+.bottom-grid{margin-bottom:16px}
+.gateway-dialog{width:min(480px,calc(100% - 32px));max-height:calc(100% - 32px);padding:24px;border:1px solid #e2e7ef;border-radius:12px;color:#202a3b;box-shadow:0 24px 80px #111b2c40}
+.gateway-dialog::backdrop{background:#101a2b80;backdrop-filter:blur(2px)}
+.gateway-dialog form{display:grid}
+.gateway-dialog-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:21px}
+.gateway-dialog-header .overline{margin:0 0 6px}
+.gateway-dialog-header h2{margin:0;font-size:18px}
+.gateway-dialog label:not(.gateway-enabled){margin:0 0 6px;color:#526075;font-size:11px;font-weight:700}
+.gateway-dialog input:not([type=checkbox]){width:100%;height:39px;margin-bottom:15px;padding:0 11px;border:1px solid #dce2eb;border-radius:6px;color:#202a3b;font:12px Manrope,sans-serif}
+.gateway-dialog input:focus{outline:2px solid #aebfff;border-color:#6685ed}
+.dialog-hint{margin:-10px 0 16px;color:#8490a1;font-size:10px;line-height:1.55}
+.gateway-enabled{display:flex;align-items:center;gap:8px;margin:0 0 12px;color:#526075;font-size:11px}
+.gateway-enabled input{accent-color:#4d6fe4}
+.dialog-error{margin:0 0 14px;padding:10px;border:1px solid #f2c8c3;border-radius:6px;background:#fff6f4;color:#a43e34;font-size:11px}
+.gateway-dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:7px}
+.gateway-dialog-actions button:disabled{opacity:.6;cursor:wait}
+.dialog-close{width:28px;height:28px;border:0;border-radius:6px;background:#f3f5f8;color:#687487;font-size:20px;line-height:1;cursor:pointer}
+.key-dialog>p{margin:0 0 13px}
+.key-dialog>code{display:block;overflow-wrap:anywhere;padding:12px;border:1px solid #e2e7ef;border-radius:6px;background:#f6f8fb;color:#263247;font:12px "DM Mono",monospace}
+.key-dialog .gateway-dialog-actions{margin-top:18px}
+.request-dialog{width:min(680px,calc(100% - 32px))}
+.request-dialog form{display:grid}
+.request-dialog .dialog-hint{margin:-9px 0 14px}
+.request-target{margin:-12px 0 16px;color:#7b8798;font-size:10px}
+.request-target code{color:#4f638e;font:10px "DM Mono",monospace}
+.required-mark{color:#c85e4f}
+.optional-mark{color:#9aa2af;font-weight:400}
+.request-line{display:grid;grid-template-columns:90px 125px minmax(0,1fr);align-items:center;gap:8px}
+.request-line label{margin:0!important}
+.request-line select,.request-dialog textarea{width:100%;margin:0 0 15px;padding:9px 10px;border:1px solid #dce2eb;border-radius:6px;background:#fff;color:#263247;font:11px Manrope,sans-serif}
+.request-line select{height:39px}
+.request-dialog textarea{resize:vertical;min-height:56px;font:11px "DM Mono",monospace;line-height:1.5}
+.request-response{margin-top:20px;padding-top:16px;border-top:1px solid #e8ebf1}
+.request-response-header{display:flex;align-items:center;justify-content:space-between}
+.request-response-header h3{margin:0;color:#263247;font-size:13px}
+.request-response-header span{padding:4px 8px;border-radius:5px;font:600 10px "DM Mono",monospace}
+.response-success{background:#eaf8f2;color:#27835f}
+.response-failure{background:#fff0ed;color:#ae493e}
+.request-response>p{margin:7px 0 12px;color:#8490a1;font:10px "DM Mono",monospace}
+.request-response details{margin-bottom:10px;color:#657287;font-size:10px}
+.request-response details pre,.request-response-body{max-height:210px;overflow:auto;margin:8px 0 0;padding:10px;border:1px solid #e5e9ef;border-radius:6px;background:#f7f8fb;color:#303c50;white-space:pre-wrap;overflow-wrap:anywhere;font:10px/1.55 "DM Mono",monospace}
+.request-response-body{margin:0}
+.api-actions .text-button[data-test]{color:#287c61;font-weight:800}
+@media(max-width:560px){.request-line{grid-template-columns:76px minmax(0,1fr)}.request-line label:nth-of-type(2){grid-column:1/-1}.request-line input{grid-column:1/-1}}
+@media(max-width:900px){.api-actions{white-space:normal}.api-actions .text-button{margin:4px}}

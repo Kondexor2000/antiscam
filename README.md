@@ -1,9 +1,10 @@
 # AntiScam
 
-AntiScam to repozytorium z dwoma częściami:
+AntiScam to repozytorium z trzema częściami:
 
 - silnikiem Python/FastAPI do oceny ryzyka wiadomości phishingowych,
-- blogiem C# ASP.NET Core WebAPI z plikami HTML i bazą SQLite.
+- blogiem C# ASP.NET Core WebAPI z plikami HTML i bazą SQLite,
+- panelem AntiScam API Platform z lokalnym rejestrem API i reverse proxy.
 
 Nowy blog jest połączony z folderem roboczym, a domyślna baza SQLite powstaje w `data/antiscam-blog.sqlite` (względnie do katalogu projektu).
 
@@ -27,7 +28,7 @@ dotnet run --project src\AntiScam.Blog.Api\AntiScam.Blog.Api.csproj
 
 Po uruchomieniu aplikacja jest dostępna pod adresem wyświetlonym przez `dotnet run`, zwykle `http://localhost:5000` albo `http://localhost:5080`.
 
-### Frontend HTML
+### Panel API Platform
 
 Otwórz w przeglądarce:
 
@@ -35,7 +36,33 @@ Otwórz w przeglądarce:
 /
 ```
 
-Strona ładuje wpisy z API i pozwala dodać nowy wpis blogowy.
+Strona główna (`/`) odczytuje katalog usług i liczniki żądań z działającego backendu. Żądania Blog API (`/api/posts` i komentarze) oraz przekazania gatewaya (`/gateway/{id}/{path}`) są liczone oddzielnie. Konfiguracje API są trwale zapisywane w tej samej bazie SQLite co blog. Każde API ma losowy klucz klienta, którego hash jest przechowywany w bazie.
+
+Przed uruchomieniem ustaw klucz administratora (co najmniej 32 losowe bajty) — bez niego endpointy zarządzania zwracają `503`:
+
+```powershell
+$env:ANTISCAM_CONTROL_PLANE_KEY = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+dotnet run --project src\AntiScam.Blog.Api\AntiScam.Blog.Api.csproj
+```
+
+Panel poprosi o ten klucz przy pierwszym odczycie katalogu i przechowa go tylko w pamięci sesji przeglądarki. Endpointy Control Plane wymagają nagłówka `X-Control-Plane-Key`. Klucz klienta API jest generowany przy rejestracji (lub rotacji), pokazywany tylko raz i wymagany w nagłówku `X-API-Key` przy wywołaniu `/gateway/{id}/{path}`. Przykładowe operacje zarządzania:
+
+```text
+GET    /api/gateway/apis
+GET    /api/gateway/apis/{id}
+POST   /api/gateway/apis
+PUT    /api/gateway/apis/{id}
+DELETE /api/gateway/apis/{id}
+POST   /api/gateway/apis/{id}/rotate-key
+GET    /api/gateway/metrics
+GET    /api/blog/metrics
+```
+
+To działający, pojedynczoinstancyjny MVP, nie gotowa platforma produkcyjna. Metryki są przechowywane w pamięci i zerują się po restarcie; nie są współdzielone między instancjami. Klucz API jest współdzielonym sekretem usługi, nie zastępuje OAuth2/OIDC, ról ani limitów per klient. Aplikacja nie zapewnia WAF/DDoS, rozproszonego rate limitingu ani magazynu sekretów upstreamów. Ogranicz dostęp sieciowy do panelu administracyjnego, używaj HTTPS i rejestruj wyłącznie zaufane adresy upstream. Istniejąca analiza antyscamowa pozostaje dostępna w dotychczasowym API bloga.
+
+### Blog i analiza antyscamowa
+
+Endpointy wpisów blogowych nadal działają niezależnie od nowego panelu.
 
 Przed publikacją C# WebAPI analizuje tytuł, streszczenie, treść i autora. Wpis zostanie zapisany tylko przy statusie `LOW RISK`; dla `MEDIUM RISK` lub `HIGH RISK` API zwraca `422 Unprocessable Entity` i nie zapisuje wpisu w SQLite.
 
@@ -47,10 +74,19 @@ MongoDB jest włączony przez `NoSql:Enabled`. Adres serwera można podać w `No
 
 Odrzucone zgłoszenia można odczytać przez `GET /api/incidents?limit=50`. Po włączeniu MongoDB endpoint zwraca wpisy z kolekcji `blocked-submissions`, od najnowszych. Przy wyłączonej lub niedostępnej bazie odpowiedzią jest pusta lista.
 
-### Endpointy bloga
+### Endpointy backendu
 
 ```text
 GET    /api/health
+GET    /api/gateway/apis
+GET    /api/gateway/apis/{id}
+POST   /api/gateway/apis
+PUT    /api/gateway/apis/{id}
+DELETE /api/gateway/apis/{id}
+POST   /api/gateway/apis/{id}/rotate-key
+GET    /api/gateway/metrics
+GET    /api/blog/metrics
+ANY    /gateway/{id}/{path}
 GET    /api/storage
 GET    /api/incidents?limit=50
 GET    /api/workspace
@@ -60,6 +96,125 @@ POST   /api/posts
 PUT    /api/posts/{id}
 DELETE /api/posts/{id}
 ```
+
+### Obsługa żądań przez Gateway
+
+Gateway przekazuje żądania HTTP do upstreamu zarejestrowanego dla danego API. Są dwa oddzielne klucze:
+
+- `ANTISCAM_CONTROL_PLANE_KEY` / nagłówek `X-Control-Plane-Key` — dostęp administratora do rejestracji API, konfiguracji i metryk.
+- klucz klienta API / nagłówek `X-API-Key` — wymagany przy każdym żądaniu przekazywanym przez `/gateway`.
+
+#### 1. Zarejestruj upstream
+
+Uruchom usługę upstream i upewnij się, że jest osiągalna z procesu Blog API. Wartością `upstreamUrl` jest bazowy adres usługi, bez danych logowania, query ani fragmentu. Poniższy przykład rejestruje Python AntiScam API, uruchomione domyślnie na porcie 8000:
+
+```powershell
+$baseUrl = "http://localhost:5000" # Zastąp adresem C# Blog API, jeśli używa innego portu.
+$adminKey = $env:ANTISCAM_CONTROL_PLANE_KEY
+$adminHeaders = @{ "X-Control-Plane-Key" = $adminKey }
+
+$registration = Invoke-RestMethod `
+  -Uri "$baseUrl/api/gateway/apis" `
+  -Method POST `
+  -Headers $adminHeaders `
+  -ContentType "application/json" `
+  -Body '{"name":"Python AntiScam","version":"v1","upstreamUrl":"http://localhost:8000","enabled":true}'
+
+$apiId = $registration.api.id
+$clientKey = $registration.apiKey
+$registration.api
+```
+
+Odpowiedź zawiera `api.id`, adres `api.gatewayUrl` oraz wygenerowany `apiKey`. Zapisz klucz klienta w bezpiecznym magazynie — zwracany jest tylko podczas rejestracji lub rotacji, a baza przechowuje wyłącznie jego hash. W panelu Control Plane możesz dodać API, edytować nazwę, wersję i upstream, włączać lub wyłączać rejestrację, rotować klucz klienta oraz usuwać API. Formularz **Dodaj API** / **Edytuj** zapisuje konfigurację, a po rejestracji lub rotacji pokazuje nowy klucz w oknie umożliwiającym skopiowanie.
+
+#### 2. Wywołuj usługę przez Gateway
+
+Ścieżka po identyfikatorze API jest dołączana do `upstreamUrl`; query string, metoda HTTP, treść żądania i zwykłe nagłówki są przekazywane upstreamowi. Na przykład `/gateway/{id}/scan?verbose=true` kieruje do `/scan?verbose=true` usługi upstream:
+
+Żądanie możesz też wysłać z panelu: przy wybranym API kliknij **Testuj**, wklej klucz klienta `X-API-Key`, wybierz metodę, wpisz ścieżkę i ewentualną treść, a następnie kliknij **Wyślij żądanie**. Wynik pokazuje status, czas, nagłówki i treść odpowiedzi. Dodatkowe nagłówki wpisuj po jednym w formacie `Nazwa: wartość`. Klucz nie jest zapisywany przez panel. Przycisk testu wykonuje rzeczywiste żądanie i zwiększa metryki Gateway.
+
+Przykład testu Python AntiScam API w panelu: upstream `http://localhost:8000`, metoda `POST`, ścieżka `/scan`, `Content-Type: application/json` i treść:
+
+```json
+{"text":"Wyślij BLIK 123456 natychmiast!"}
+```
+
+Panel i usługa upstream muszą być uruchomione, a wpisana ścieżka jest ścieżką względem skonfigurowanego upstreamu. Klucz klienta jest pokazywany przy rejestracji lub rotacji; jeśli nie został zapisany, trzeba go obrócić i zaktualizować używających go klientów.
+
+```powershell
+$clientHeaders = @{ "X-API-Key" = $clientKey }
+
+# Python AntiScam API: GET / na upstreamie http://localhost:8000
+Invoke-RestMethod `
+  -Uri "$baseUrl/gateway/$apiId/" `
+  -Method GET `
+  -Headers $clientHeaders
+
+# Python AntiScam API: POST /scan
+$scanBody = @{ text = "Wyślij BLIK 123456 natychmiast!" } | ConvertTo-Json
+Invoke-RestMethod `
+  -Uri "$baseUrl/gateway/$apiId/scan" `
+  -Method POST `
+  -Headers $clientHeaders `
+  -ContentType "application/json" `
+  -Body $scanBody
+```
+
+Obsługiwane metody to `GET`, `HEAD`, `POST`, `PUT`, `PATCH`, `DELETE` i `OPTIONS`. Odpowiedź upstreamu — status HTTP, treść i nagłówki odpowiedzi — jest zwracana klientowi. Nagłówki hop-by-hop są usuwane, a `X-API-Key` i `X-Control-Plane-Key` nie są przekazywane upstreamowi.
+
+Typowe błędy Gateway:
+
+| HTTP | Znaczenie |
+| --- | --- |
+| `401 Unauthorized` | Brak lub niepoprawny `X-API-Key`. |
+| `404 Not Found` | Nieznany identyfikator API. |
+| `503 Service Unavailable` | API jest wyłączone w katalogu. |
+| `502 Bad Gateway` | Nie można połączyć się z upstreamem. Sprawdź `upstreamUrl` i dostępność usługi z hosta Blog API. |
+| `504 Gateway Timeout` | Upstream nie odpowiedział w wymaganym czasie. |
+
+#### 3. Zarządzaj rejestracją i kluczami
+
+Endpointy `/api/gateway/apis` wymagają nagłówka `X-Control-Plane-Key`. Dostępne są: `GET /api/gateway/apis` (lista), `GET /api/gateway/apis/{id}` (szczegóły), `POST /api/gateway/apis` (rejestracja), `PUT /api/gateway/apis/{id}` (zmiana nazwy, wersji, upstreamu lub stanu), `DELETE /api/gateway/apis/{id}` (usunięcie) i `POST /api/gateway/apis/{id}/rotate-key` (rotacja klucza klienta).
+
+Przykład aktualizacji upstreamu:
+
+```powershell
+$config = @{
+  name = "Python AntiScam"
+  version = "v1"
+  upstreamUrl = "http://localhost:8000"
+  enabled = $true
+} | ConvertTo-Json
+
+Invoke-RestMethod `
+  -Uri "$baseUrl/api/gateway/apis/$apiId" `
+  -Method PUT `
+  -Headers $adminHeaders `
+  -ContentType "application/json" `
+  -Body $config
+```
+
+Rotacja natychmiast unieważnia poprzedni klucz klienta. Odpowiedź zawiera nowy `apiKey`; zaktualizuj nim klientów przed kolejnymi wywołaniami Gateway:
+
+```powershell
+$rotated = Invoke-RestMethod `
+  -Uri "$baseUrl/api/gateway/apis/$apiId/rotate-key" `
+  -Method POST `
+  -Headers $adminHeaders
+$clientKey = $rotated.apiKey
+```
+
+#### 4. Sprawdź metryki
+
+`GET /api/gateway/metrics` zwraca liczbę żądań przekazanych przez Gateway, liczbę odpowiedzi 4xx/5xx i średnie opóźnienie. `GET /api/gateway/apis/{id}` oraz lista API podają te same liczniki osobno dla każdej rejestracji. Oba endpointy wymagają `X-Control-Plane-Key`.
+
+```powershell
+Invoke-RestMethod `
+  -Uri "$baseUrl/api/gateway/metrics" `
+  -Headers $adminHeaders
+```
+
+Liczniki są przechowywane w pamięci bieżącego procesu i zerują się po restarcie. Obejmują wszystkie żądania do tras Gateway, również te odrzucone z powodu braku klucza; ruch do Blog API poza `/gateway/{id}/{path}` jest mierzony osobno przez `/api/blog/metrics`.
 
 Przykład dodania wpisu:
 
@@ -168,13 +323,15 @@ Pełna lista zmiennych środowiskowych używanych w projekcie:
 
 | Zmienna | Opis | Domyślnie | Przykład |
 |---------|------|----------|----------|
-| `ANTISCAM_BLOG_DB` | Ścieżka do bazy SQLite blogu | `data/antiscam-blog.sqlite` | `C:\temp\antiscam-blog.sqlite` |
+| `ANTISCAM_BLOG_DB` | Ścieżka do bazy SQLite blogu | `data/antiscam-blog.sqlite` | .\data\antiscam-blog.sqlite |
+| `ANTISCAM_CONTROL_PLANE_KEY` | Klucz administratora API Control Plane | brak | wygeneruj 32 losowe bajty |
 | `ANTISCAM_MONGO_CONNECTION_STRING` | Adres serwera MongoDB (opcjonalne) | - | `mongodb+srv://user:pass@cluster.mongodb.net` |
 | `ANTISCAM_HTTPS_CERT_PASSWORD` | Hasło do certyfikatu HTTPS (OpenSSL) | - | `silne-lokalne-haslo` |
 
 **Ustawianie zmiennych w PowerShell:**
 ```powershell
-$env:ANTISCAM_BLOG_DB="C:\temp\antiscam-blog.sqlite"
+$env:ANTISCAM_BLOG_DB = '.\data\antiscam-blog.sqlite'
+$env:ANTISCAM_CONTROL_PLANE_KEY = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
 ```
 
 ## Zgodność z sylabusami
@@ -220,10 +377,10 @@ Domyślne ustawienia są w `src/AntiScam.Blog.Api/appsettings.json`:
 ```json
 {
   "Workspace": {
-    "RootPath": "C:\\Users\\kondz\\antiscam"
+    "RootPath": "."
   },
   "Blog": {
-    "DatabasePath": "C:\\Users\\kondz\\antiscam\\data\\antiscam-blog.sqlite"
+    "DatabasePath": "data/antiscam-blog.sqlite"
   }
 }
 ```
@@ -231,7 +388,7 @@ Domyślne ustawienia są w `src/AntiScam.Blog.Api/appsettings.json`:
 Do testów lub lokalnych eksperymentów można nadpisać ścieżkę bazy zmienną środowiskową:
 
 ```powershell
-$env:ANTISCAM_BLOG_DB="C:\temp\antiscam-blog.sqlite"
+$env:ANTISCAM_BLOG_DB = '.\data\antiscam-blog.sqlite'
 ```
 
 ### HTTPS w sieci lokalnej (OpenSSL)
