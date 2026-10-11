@@ -317,6 +317,9 @@ Projekt C# zawiera testy jednostkowe dla walidacji i slugów oraz testy integrac
 Obejmuje też testy blokowania publikacji wpisów, w których wykryto ryzyko phishingu lub oszustwa.
 Obejmuje również testy kryptografii AES-GCM-256.
 
+Instrukcje przygotowania środowiska, smoke test C# oraz ręczne scenariusze
+akceptacyjne obu API znajdują się w [planie testów QA](docs/qa-test-plan.md).
+
 ## Zmienne środowiskowe
 
 Pełna lista zmiennych środowiskowych używanych w projekcie:
