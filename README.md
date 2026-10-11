@@ -66,6 +66,27 @@ Endpointy wpisów blogowych nadal działają niezależnie od nowego panelu.
 
 Przed publikacją C# WebAPI analizuje tytuł, streszczenie, treść i autora. Wpis zostanie zapisany tylko przy statusie `LOW RISK`; dla `MEDIUM RISK` lub `HIGH RISK` API zwraca `422 Unprocessable Entity` i nie zapisuje wpisu w SQLite.
 
+## Python AntiScam API w Dockerze
+
+Obraz i pipeline Jenkins dotyczą wyłącznie API Python — nie budują ani nie
+uruchamiają projektu C#.
+
+Z katalogu głównego repozytorium zbuduj i uruchom kontener:
+
+```powershell
+docker build -f ci/python/Dockerfile -t antiscam-api .
+docker run --rm -p 8000:8000 antiscam-api
+```
+
+API będzie dostępne pod `http://localhost:8000`. Obraz trenuje wymagany model
+ML podczas budowania, więc nie zależy od lokalnego pliku `models/model.joblib`.
+
+Pipeline jest w `ci/python/Jenkinsfile`. Skonfiguruj zadanie Jenkins tak, aby
+używało tego pliku, i uruchamiaj je na agencie Linux z Pythonem 3.11+, modułem
+`venv` oraz Docker CLI/daemonem. Pipeline instaluje zależności w lokalnym
+środowisku wirtualnym, trenuje model, uruchamia testy `pytest` i buduje obraz
+API.
+
 ### Opcjonalna baza NoSQL (MongoDB)
 
 SQLite nadal jest domyślną bazą wpisów bloga. Opcjonalna baza MongoDB przechowuje jedynie zgłoszenia odrzucone przez analizę ryzyka, więc nie zmienia działania istniejącego magazynu SQLite.

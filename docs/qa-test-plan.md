@@ -48,6 +48,26 @@ python -m pytest
 dotnet test AntiScamBlog.sln
 ```
 
+## Docker i Jenkins — tylko Python
+
+Kontener i pipeline dotyczą wyłącznie Python AntiScam API; nie budują ani nie
+uruchamiają projektu C#. Z katalogu głównego repozytorium zbuduj i uruchom
+kontener:
+
+```powershell
+docker build -f ci/python/Dockerfile -t antiscam-api .
+docker run --rm -p 8000:8000 antiscam-api
+```
+
+API działa wtedy pod `http://localhost:8000`. Obraz trenuje model ML podczas
+budowania, dlatego nie wymaga lokalnego pliku `models/model.joblib`.
+
+Pipeline Jenkins znajduje się w `ci/python/Jenkinsfile`. Zadanie Jenkins
+powinno wskazywać ten plik i używać agenta Linux z Pythonem 3.11+, modułem
+`venv` oraz Docker CLI/daemonem. Pipeline instaluje zależności Python w
+lokalnym środowisku wirtualnym, trenuje model, uruchamia testy Python i buduje
+obraz kontenera; nie wykonuje poleceń .NET.
+
 Testy Python obejmują walidację API, klasyfikację ryzyka, normalizację,
 analizę linków, modele AI/ML i scenariusze złośliwych danych. Testy .NET
 obejmują logikę jednostkową oraz integrację API, repozytorium SQLite,

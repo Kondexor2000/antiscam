@@ -53,6 +53,27 @@ Before publication, C# WebAPI analyzes the title, abstract, content and author.
 
 The entry will only be saved in `LOW RISK` status; for `MEDIUM RISK` or `HIGH RISK` the API returns `422 Unprocessable Entity` and does not write an entry to SQLite.
 
+## Python AntiScam API with Docker
+
+The Docker image and Jenkins pipeline apply only to the Python API; they do not
+build or run the C# project.
+
+Build and run the container from the repository root:
+
+```powershell
+docker build -f ci/python/Dockerfile -t antiscam-api .
+docker run --rm -p 8000:8000 antiscam-api
+```
+
+The API will be available at `http://localhost:8000`. The image trains the
+required ML model during build, so it does not depend on a local
+`models/model.joblib` file.
+
+The pipeline is in `ci/python/Jenkinsfile`. Configure Jenkins to use that file
+and run it on a Linux agent with Python 3.11+, the `venv` module, and the
+Docker CLI/daemon. It installs dependencies in a local virtual environment,
+trains the model, runs `pytest`, and builds the API image.
+
 ### Optional NoSQL database (MongoDB)
 
 SQLite is still the default blog post database.

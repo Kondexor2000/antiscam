@@ -1,0 +1,32 @@
+pipeline {
+    agent any
+
+    options {
+        timestamps()
+    }
+
+    stages {
+        stage('Python tests') {
+            steps {
+                sh '''
+                    python3 -m venv .venv
+                    .venv/bin/python -m pip install -r requirements-dev.txt
+                    .venv/bin/python -m pip install -e .
+                    .venv/bin/python train.py
+                    .venv/bin/python -m pytest --junitxml=pytest-results.xml
+                '''
+            }
+            post {
+                always {
+                    junit 'pytest-results.xml'
+                }
+            }
+        }
+
+        stage('Build Python Docker image') {
+            steps {
+                sh 'docker build -f ci/python/Dockerfile -t antiscam-api:${BUILD_NUMBER} .'
+            }
+        }
+    }
+}
