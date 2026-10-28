@@ -3,10 +3,10 @@
 AntiScam to repozytorium z trzema częściami:
 
 - silnikiem Python/FastAPI do oceny ryzyka wiadomości phishingowych,
-- blogiem C# ASP.NET Core WebAPI z plikami HTML i bazą SQLite,
+- blogiem C# ASP.NET Core WebAPI z plikami HTML i bazą Microsoft SQL Server,
 - panelem AntiScam API Platform z lokalnym rejestrem API i reverse proxy.
 
-Nowy blog jest połączony z folderem roboczym, a domyślna baza SQLite powstaje w `data/antiscam-blog.sqlite` (względnie do katalogu projektu).
+Blog korzysta z Microsoft SQL Server przez bibliotekę `Microsoft.Data.SqlClient`. Wymaga działającej instancji SQL Server lub LocalDB oraz utworzonej bazy `AntiScamBlog`; parametry połączenia ustawisz w `Blog:ConnectionString` albo `ANTISCAM_BLOG_CONNECTION_STRING`.
 
 ## Sugestie rozszerzeń
 
@@ -16,10 +16,20 @@ git clone https://github.com/Kondexor2000/antihacker.git
 
 - Python 3.10+
 - .NET SDK 8.0+
+- SQL Server lub SQL Server LocalDB (z utworzoną bazą `AntiScamBlog`)
+- Redis (opcjonalnie; cache odpowiedzi publicznych endpointów bloga)
 - pip
 - OpenSSL (opcjonalnie, do generowania certyfikatów HTTPS)
 
 ## Szybki start: C# Blog WebAPI
+
+Przed pierwszym uruchomieniem utwórz bazę `AntiScamBlog` na wybranej instancji SQL Server (np. w SSMS lub `sqlcmd`):
+
+```sql
+CREATE DATABASE AntiScamBlog;
+```
+
+Wartość domyślna w `appsettings.json` korzysta z `(localdb)\MSSQLLocalDB`. Dla innej instancji ustaw `ANTISCAM_BLOG_CONNECTION_STRING`; biblioteka NuGet jest klientem i nie instaluje samego serwera SQL.
 
 ```powershell
 dotnet restore AntiScamBlog.sln
@@ -27,6 +37,18 @@ dotnet run --project src\AntiScam.Blog.Api\AntiScam.Blog.Api.csproj
 ```
 
 Po uruchomieniu aplikacja jest dostępna pod adresem wyświetlonym przez `dotnet run`, zwykle `http://localhost:5000` albo `http://localhost:5080`.
+
+### Opcjonalny cache Redis
+
+Publiczne odczyty wpisów i komentarzy są cache'owane przez 60 sekund. Po dodaniu lub edycji wpisu oraz po dodaniu komentarza odpowiedni cache jest unieważniany. Bez Redis aplikacja korzysta z wbudowanego cache'u pamięciowego. Aby współdzielić cache między instancjami, uruchom Redis i ustaw `ANTISCAM_REDIS_CONNECTION_STRING` (np. `localhost:6379`) albo `Cache:RedisConnectionString` w konfiguracji:
+
+```powershell
+docker run --rm -d --name antiscam-redis -p 6379:6379 redis:7-alpine
+$env:ANTISCAM_REDIS_CONNECTION_STRING = "localhost:6379"
+dotnet run --project src\AntiScam.Blog.Api\AntiScam.Blog.Api.csproj
+```
+
+Stan magazynu cache zwraca `GET /api/health` jako `distributedCache`.
 
 ### Panel API Platform
 
@@ -36,7 +58,7 @@ Otwórz w przeglądarce:
 /
 ```
 
-Strona główna (`/`) odczytuje katalog usług i liczniki żądań z działającego backendu. Żądania Blog API (`/api/posts` i komentarze) oraz przekazania gatewaya (`/gateway/{id}/{path}`) są liczone oddzielnie. Konfiguracje API są trwale zapisywane w tej samej bazie SQLite co blog. Każde API ma losowy klucz klienta, którego hash jest przechowywany w bazie.
+Strona główna (`/`) odczytuje katalog usług i liczniki żądań z działającego backendu. Żądania Blog API (`/api/posts` i komentarze) oraz przekazania gatewaya (`/gateway/{id}/{path}`) są liczone oddzielnie. Konfiguracje API są trwale zapisywane w tej samej bazie SQL Server co blog. Każde API ma losowy klucz klienta, którego hash jest przechowywany w bazie.
 
 Przed uruchomieniem ustaw klucz administratora (co najmniej 32 losowe bajty) — bez niego endpointy zarządzania zwracają `503`:
 
@@ -64,32 +86,51 @@ To działający, pojedynczoinstancyjny MVP, nie gotowa platforma produkcyjna. Me
 
 Endpointy wpisów blogowych nadal działają niezależnie od nowego panelu.
 
-Przed publikacją C# WebAPI analizuje tytuł, streszczenie, treść i autora. Wpis zostanie zapisany tylko przy statusie `LOW RISK`; dla `MEDIUM RISK` lub `HIGH RISK` API zwraca `422 Unprocessable Entity` i nie zapisuje wpisu w SQLite.
+Przed publikacją C# WebAPI analizuje tytuł, streszczenie, treść i autora. Wpis zostanie zapisany tylko przy statusie `LOW RISK`; dla `MEDIUM RISK` lub `HIGH RISK` API zwraca `422 Unprocessable Entity` i nie zapisuje wpisu w SQL Server.
 
-## Python AntiScam API w Dockerze
+## Docker Compose: cały projekt
 
-Obraz i pipeline Jenkins dotyczą wyłącznie API Python — nie budują ani nie
-uruchamiają projektu C#.
+Jeden stos uruchamia Python AntiScam API, blog i panel .NET, SQL Server oraz
+Redis. SQL Server i Redis nie są wystawiane na hosta; aplikacje komunikują się
+z nimi w prywatnej sieci Compose. Schemat SQL jest tworzony przy starcie API.
 
-Z katalogu głównego repozytorium zbuduj i uruchom kontener:
+Przygotuj lokalny plik konfiguracyjny i ustaw dwa własne sekrety:
 
 ```powershell
-docker build -f ci/python/Dockerfile -t antiscam-api .
-docker run --rm -p 8000:8000 antiscam-api
+Copy-Item .env.example .env
 ```
 
-API będzie dostępne pod `http://localhost:8000`. Obraz trenuje wymagany model
-ML podczas budowania, więc nie zależy od lokalnego pliku `models/model.joblib`.
+Edytuj `.env`: `MSSQL_SA_PASSWORD` musi spełniać wymagania SQL Server, a
+`ANTISCAM_CONTROL_PLANE_KEY` powinien być losowym sekretem o długości co
+najmniej 32 bajtów. Plik `.env` jest ignorowany przez Git. Następnie:
 
-Pipeline jest w `ci/python/Jenkinsfile`. Skonfiguruj zadanie Jenkins tak, aby
-używało tego pliku, i uruchamiaj je na agencie Linux z Pythonem 3.11+, modułem
-`venv` oraz Docker CLI/daemonem. Pipeline instaluje zależności w lokalnym
-środowisku wirtualnym, trenuje model, uruchamia testy `pytest` i buduje obraz
-API.
+```powershell
+docker compose up --build -d
+docker compose ps
+```
+
+Panel i blog będą pod `http://localhost:5000`, a Python API pod
+`http://localhost:8000`. Stan usług sprawdzisz przez `docker compose ps`;
+logi: `docker compose logs -f blog-api python-api`. Zatrzymaj stos przez
+`docker compose down`. Dane SQL i Redis zostają w wolumenach; aby usunąć
+również dane, użyj `docker compose down -v`.
+
+MongoDB jest opcjonalny i przechowuje odrzucone zgłoszenia. W `.env` ustaw
+`ANTISCAM_MONGO_ENABLED=true`, a następnie uruchom `docker compose --profile
+nosql up --build -d`. Domyślnie integracja MongoDB pozostaje wyłączona.
+
+## Jenkins CI
+
+Główny pipeline znajduje się w `Jenkinsfile`. Zadanie Jenkins powinno wskazywać
+ten plik i działać na linuksowym agencie z Pythonem 3, .NET SDK 8 oraz Docker
+CLI/daemonem. Pipeline instaluje zależności i uruchamia testy Pythona, uruchamia
+testy .NET przeciwko tymczasowemu SQL Server, a następnie buduje obrazy obu API.
+Nie publikuje obrazów do rejestru — dodanie push wymaga skonfigurowanych
+poświadczeń rejestru.
 
 ### Opcjonalna baza NoSQL (MongoDB)
 
-SQLite nadal jest domyślną bazą wpisów bloga. Opcjonalna baza MongoDB przechowuje jedynie zgłoszenia odrzucone przez analizę ryzyka, więc nie zmienia działania istniejącego magazynu SQLite.
+SQL Server przechowuje wpisy bloga i konfigurację API. Opcjonalna baza MongoDB przechowuje jedynie zgłoszenia odrzucone przez analizę ryzyka.
 
 MongoDB jest włączony przez `NoSql:Enabled`. Adres serwera można podać w `NoSql:ConnectionString` albo przez zmienną środowiskową `ANTISCAM_MONGO_CONNECTION_STRING`. Domyślna baza i kolekcja to `antiscam` oraz `blocked-submissions`. Bieżącą konfigurację obu magazynów zwraca `GET /api/storage`.
 
@@ -334,7 +375,7 @@ Testy Python:
 pytest
 ```
 
-Projekt C# zawiera testy jednostkowe dla walidacji i slugów oraz testy integracyjne API, SQLite i statycznej strony HTML.
+Projekt C# zawiera testy jednostkowe dla walidacji i slugów oraz testy integracyjne API, SQL Server i statycznej strony HTML.
 Obejmuje też testy blokowania publikacji wpisów, w których wykryto ryzyko phishingu lub oszustwa.
 Obejmuje również testy kryptografii AES-GCM-256.
 
@@ -347,14 +388,15 @@ Pełna lista zmiennych środowiskowych używanych w projekcie:
 
 | Zmienna | Opis | Domyślnie | Przykład |
 |---------|------|----------|----------|
-| `ANTISCAM_BLOG_DB` | Ścieżka do bazy SQLite blogu | `data/antiscam-blog.sqlite` | .\data\antiscam-blog.sqlite |
+| `ANTISCAM_BLOG_CONNECTION_STRING` | Connection string do SQL Server | wartość `Blog:ConnectionString` | `Server=(localdb)\\MSSQLLocalDB;Database=AntiScamBlog;Integrated Security=True;TrustServerCertificate=True` |
 | `ANTISCAM_CONTROL_PLANE_KEY` | Klucz administratora API Control Plane | brak | wygeneruj 32 losowe bajty |
 | `ANTISCAM_MONGO_CONNECTION_STRING` | Adres serwera MongoDB (opcjonalne) | - | `mongodb+srv://user:pass@cluster.mongodb.net` |
+| `ANTISCAM_REDIS_CONNECTION_STRING` | Cache współdzielony między instancjami dla odpowiedzi bloga | cache pamięciowy | `localhost:6379` |
 | `ANTISCAM_HTTPS_CERT_PASSWORD` | Hasło do certyfikatu HTTPS (OpenSSL) | - | `silne-lokalne-haslo` |
 
 **Ustawianie zmiennych w PowerShell:**
 ```powershell
-$env:ANTISCAM_BLOG_DB = '.\data\antiscam-blog.sqlite'
+$env:ANTISCAM_BLOG_CONNECTION_STRING = 'Server=(localdb)\MSSQLLocalDB;Database=AntiScamBlog;Integrated Security=True;TrustServerCertificate=True'
 $env:ANTISCAM_CONTROL_PLANE_KEY = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
 ```
 
@@ -404,7 +446,7 @@ Domyślne ustawienia są w `src/AntiScam.Blog.Api/appsettings.json`:
     "RootPath": "."
   },
   "Blog": {
-    "DatabasePath": "data/antiscam-blog.sqlite"
+    "ConnectionString": "Server=(localdb)\\MSSQLLocalDB;Database=AntiScamBlog;Integrated Security=True;TrustServerCertificate=True"
   }
 }
 ```
@@ -412,7 +454,7 @@ Domyślne ustawienia są w `src/AntiScam.Blog.Api/appsettings.json`:
 Do testów lub lokalnych eksperymentów można nadpisać ścieżkę bazy zmienną środowiskową:
 
 ```powershell
-$env:ANTISCAM_BLOG_DB = '.\data\antiscam-blog.sqlite'
+$env:ANTISCAM_BLOG_CONNECTION_STRING = 'Server=(localdb)\MSSQLLocalDB;Database=AntiScamBlog;Integrated Security=True;TrustServerCertificate=True'
 ```
 
 ### HTTPS w sieci lokalnej (OpenSSL)
@@ -451,7 +493,7 @@ Zalecany przepływ po zmianach:
 ```powershell
 git status
 git add .
-git commit -m "Add C# blog WebAPI with SQLite"
+git commit -m "Add C# blog WebAPI with SQL Server"
 git push origin main
 ```
 
@@ -472,14 +514,17 @@ $env:ASPNETCORE_URLS="http://localhost:5002"
 uvicorn antiscam.api:app --reload --port 8001
 ```
 
-### Baza SQLite jest zablokowana
+### Baza SQL Server jest niedostępna
 
-**Problem:** "database is locked" podczas testów lub jednoczesnych operacji.
+**Problem:** API nie może połączyć się z bazą SQL Server.
 
 **Rozwiązanie:**
-- Upewnij się, że tylko jedna instancja C# API jest uruchomiona
-- Zamknij inne procesy korzystające z bazy (np. `sqlite3.exe`)
-- Usuń plik `.sqlite-journal` jeśli istnieje
+- Sprawdź, czy instancja SQL Server/LocalDB działa i jest osiągalna.
+- Upewnij się, że baza `AntiScamBlog` została utworzona.
+- Sprawdź `Blog:ConnectionString` lub `ANTISCAM_BLOG_CONNECTION_STRING` oraz uprawnienia konta.
+
+Istniejący plik SQLite pozostaje na dysku, ale aplikacja nie importuje z niego
+wpisów automatycznie. Przed usunięciem starego pliku przenieś potrzebne dane osobno.
 
 ### Python dependencies nie instalują się
 

@@ -15,7 +15,7 @@ if (![string]::IsNullOrWhiteSpace($processPath)) {
     $env:Path = $processPath
 }
 $csharpProcess = $null
-$temporaryDatabase = Join-Path $env:TEMP ("antiscam-demo-{0}.sqlite" -f [guid]::NewGuid().ToString('N'))
+$temporaryDatabase = "AntiScamDemo_$([guid]::NewGuid().ToString('N'))"
 $logDirectory = Join-Path $env:TEMP ("antiscam-demo-logs-{0}" -f [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $logDirectory | Out-Null
 
@@ -51,11 +51,17 @@ function Wait-ForHttpService {
 }
 
 function Start-CSharpDemo {
+    if (-not (Get-Command sqlcmd -ErrorAction SilentlyContinue)) {
+        throw 'Demo wymaga sqlcmd oraz działającej instancji SQL Server LocalDB.'
+    }
+    & sqlcmd -S '(localdb)\MSSQLLocalDB' -Q "CREATE DATABASE [$temporaryDatabase]" -b
+    if ($LASTEXITCODE -ne 0) { throw 'Nie udało się utworzyć tymczasowej bazy SQL Server.' }
+
     $existing = Get-NetTCPConnection -LocalPort $CSharpPort -State Listen -ErrorAction SilentlyContinue
     if ($null -ne $existing) { throw "Port $CSharpPort jest juz zajety. Zatrzymaj istniejacy serwer albo uzyj -CSharpPort." }
 
-    $previousDatabase = $env:ANTISCAM_BLOG_DB
-    $env:ANTISCAM_BLOG_DB = $temporaryDatabase
+    $previousDatabase = $env:ANTISCAM_BLOG_CONNECTION_STRING
+    $env:ANTISCAM_BLOG_CONNECTION_STRING = "Server=(localdb)\MSSQLLocalDB;Database=$temporaryDatabase;Integrated Security=True;TrustServerCertificate=True"
     try {
         $script:csharpProcess = Start-Process dotnet -ArgumentList @(
             'run', '--no-restore', '--project', 'src\AntiScam.Blog.Api\AntiScam.Blog.Api.csproj', '--',
@@ -65,7 +71,7 @@ function Start-CSharpDemo {
           -RedirectStandardError (Join-Path $logDirectory 'csharp.err.log')
         Wait-ForHttpService -Uri "http://127.0.0.1:$CSharpPort/api/health" -Process $script:csharpProcess -Name 'API C#'
     } finally {
-        $env:ANTISCAM_BLOG_DB = $previousDatabase
+        $env:ANTISCAM_BLOG_CONNECTION_STRING = $previousDatabase
     }
 }
 
@@ -74,7 +80,7 @@ function Invoke-CSharpDemos {
     $health = Invoke-RestMethod -Uri "$base/api/health"
     Assert-Equal $health.status 'ok' 'Nieprawidlowy stan API.'
     $storage = Invoke-RestMethod -Uri "$base/api/storage"
-    Assert-Equal $storage.primary.provider 'SQLite' 'Nieprawidlowy magazyn podstawowy.'
+    Assert-Equal $storage.primary.provider 'SQL Server' 'Nieprawidlowy magazyn podstawowy.'
 
     $posts = Invoke-RestMethod -Uri "$base/api/posts"
     if ($posts.Count -lt 2) { throw 'Brakuje wpisow startowych.' }
@@ -130,7 +136,9 @@ try {
         foreach ($process in @($csharpProcess)) {
             if ($null -ne $process -and !$process.HasExited) { Stop-Process -Id $process.Id -Force }
         }
-        Remove-Item -LiteralPath $temporaryDatabase -Force -ErrorAction SilentlyContinue
+        if (Get-Command sqlcmd -ErrorAction SilentlyContinue) {
+            & sqlcmd -S '(localdb)\MSSQLLocalDB' -Q "ALTER DATABASE [$temporaryDatabase] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [$temporaryDatabase]" -b 2>$null
+        }
     }
     if (!$KeepServers) { Remove-Item -LiteralPath $logDirectory -Recurse -Force -ErrorAction SilentlyContinue }
 }

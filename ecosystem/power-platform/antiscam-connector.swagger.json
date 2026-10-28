@@ -1,0 +1,63 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "AntiScam Risk API",
+    "description": "Scan text for scam and phishing indicators. Designed as a Power Platform custom connector starter.",
+    "version": "1.0"
+  },
+  "host": "YOUR-API-HOST",
+  "basePath": "/",
+  "schemes": ["https"],
+  "consumes": ["application/json"],
+  "produces": ["application/json"],
+  "paths": {
+    "/scan": {
+      "post": {
+        "summary": "Scan a message",
+        "description": "Assess message text and return its risk status, score, reasons, and links.",
+        "operationId": "ScanMessage",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": { "$ref": "#/definitions/ScanRequest" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Risk assessment",
+            "schema": { "$ref": "#/definitions/ScanResult" }
+          },
+          "400": { "description": "Invalid request" }
+        }
+      }
+    },
+    "/": {
+      "get": {
+        "summary": "Check API availability",
+        "operationId": "GetApiStatus",
+        "responses": { "200": { "description": "API is running" } }
+      }
+    }
+  },
+  "definitions": {
+    "ScanRequest": {
+      "type": "object",
+      "required": ["text"],
+      "properties": {
+        "text": { "type": "string", "description": "Message text to assess" }
+      }
+    },
+    "ScanResult": {
+      "type": "object",
+      "properties": {
+        "status": { "type": "string", "description": "Risk category returned by AntiScam" },
+        "risk_score": { "type": "integer", "format": "int32" },
+        "reasons": { "type": "array", "items": { "type": "string" } },
+        "safe_links": { "type": "array", "items": { "type": "string" } },
+        "risky_links": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

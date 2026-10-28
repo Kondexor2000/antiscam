@@ -4,7 +4,8 @@ using AntiScam.Blog.Api.Gateway;
 using AntiScam.Blog.Api.Models;
 using AntiScam.Blog.Api.Security;
 using AntiScam.Blog.Api.Services;
-using Microsoft.Data.Sqlite;
+using Microsoft.Data.SqlClient;
+using Microsoft.AspNetCore.OutputCaching;
 using System.Net;
 using System.Diagnostics;
 using System.Text;
@@ -16,13 +17,15 @@ var workspacePath = string.IsNullOrWhiteSpace(configuredWorkspace)
     ? builder.Environment.ContentRootPath
     : ResolvePath(configuredWorkspace, builder.Environment.ContentRootPath);
 
-var configuredDatabasePath = builder.Configuration["Blog:DatabasePath"];
-var environmentDatabasePath = Environment.GetEnvironmentVariable("ANTISCAM_BLOG_DB");
-var databasePath = !string.IsNullOrWhiteSpace(environmentDatabasePath)
-    ? ResolvePath(environmentDatabasePath, workspacePath)
-    : !string.IsNullOrWhiteSpace(configuredDatabasePath)
-        ? ResolvePath(configuredDatabasePath, workspacePath)
-        : Path.Combine(workspacePath, "data", "antiscam-blog.sqlite");
+var configuredConnectionString = builder.Configuration["Blog:ConnectionString"];
+var environmentConnectionString = Environment.GetEnvironmentVariable("ANTISCAM_BLOG_CONNECTION_STRING");
+var connectionString = !string.IsNullOrWhiteSpace(environmentConnectionString)
+    ? environmentConnectionString
+    : configuredConnectionString;
+if (string.IsNullOrWhiteSpace(connectionString))
+{
+    throw new InvalidOperationException("Configure Blog:ConnectionString or ANTISCAM_BLOG_CONNECTION_STRING for SQL Server.");
+}
 var managementKey = builder.Configuration["ControlPlane:ManagementKey"]
     ?? builder.Configuration["ANTISCAM_CONTROL_PLANE_KEY"]
     ?? Environment.GetEnvironmentVariable("ANTISCAM_CONTROL_PLANE_KEY")
@@ -42,6 +45,8 @@ if (!string.IsNullOrWhiteSpace(mongoConnectionString))
 var httpsOptions = builder.Configuration.GetSection("Https").Get<HttpsOptions>() ?? new HttpsOptions();
 httpsOptions = httpsOptions with { CertificatePath = ResolvePath(httpsOptions.CertificatePath, workspacePath) };
 var networkOptions = builder.Configuration.GetSection("Network").Get<NetworkOptions>() ?? new NetworkOptions();
+var redisConnectionString = Environment.GetEnvironmentVariable("ANTISCAM_REDIS_CONNECTION_STRING")
+    ?? builder.Configuration["Cache:RedisConnectionString"];
 var httpsPassword = Environment.GetEnvironmentVariable("ANTISCAM_HTTPS_CERT_PASSWORD");
 if (!string.IsNullOrWhiteSpace(httpsPassword)) httpsOptions = httpsOptions with { CertificatePassword = httpsPassword };
 if (httpsOptions.Enabled)
@@ -59,7 +64,16 @@ else if (networkOptions.BindToLan)
 }
 
 builder.Services.AddSingleton(new WorkspaceOptions(workspacePath));
-builder.Services.AddSingleton(new BlogDatabaseOptions(databasePath));
+builder.Services.AddSingleton(new BlogDatabaseOptions(connectionString));
+if (!string.IsNullOrWhiteSpace(redisConnectionString))
+{
+    builder.Services.AddStackExchangeRedisOutputCache(options => options.Configuration = redisConnectionString);
+}
+builder.Services.AddOutputCache(options =>
+{
+    options.AddPolicy("BlogPosts", policy => policy.Expire(TimeSpan.FromSeconds(60)).Tag("blog-posts"));
+    options.AddPolicy("BlogComments", policy => policy.Expire(TimeSpan.FromSeconds(60)).Tag("blog-comments"));
+});
 builder.Services.AddSingleton<GatewayApiRepository>();
 builder.Services.AddSingleton(new GatewayMetrics());
 builder.Services.AddSingleton<BlogRequestMetrics>();
@@ -75,7 +89,7 @@ builder.Services.AddSingleton<IScamIncidentStore>(serviceProvider =>
             noSqlOptions,
             serviceProvider.GetRequiredService<ILogger<MongoScamIncidentStore>>())
         : new NullScamIncidentStore());
-builder.Services.AddSingleton<IBlogRepository, SqliteBlogRepository>();
+builder.Services.AddSingleton<IBlogRepository, SqlServerBlogRepository>();
 
 var app = builder.Build();
 
@@ -89,7 +103,6 @@ app.UseStaticFiles(new StaticFileOptions
         context.Context.Response.Headers.Expires = "0";
     }
 });
-
 var blogRequestMetrics = app.Services.GetRequiredService<BlogRequestMetrics>();
 app.Use(async (context, next) =>
 {
@@ -107,6 +120,7 @@ app.Use(async (context, next) =>
     });
     await next();
 });
+app.UseOutputCache();
 
 var repository = app.Services.GetRequiredService<IBlogRepository>();
 await repository.InitializeAsync();
@@ -130,8 +144,9 @@ app.MapGet("/api/health", () => Results.Ok(new
 {
     status = "ok",
     application = "AntiScam API Platform",
-    storage = "SQLite",
-    secondaryStorage = noSqlOptions.Enabled ? "MongoDB" : "disabled"
+    storage = "SQL Server",
+    secondaryStorage = noSqlOptions.Enabled ? "MongoDB" : "disabled",
+    distributedCache = string.IsNullOrWhiteSpace(redisConnectionString) ? "in-memory" : "Redis"
 }));
 
 app.MapGet("/api/gateway/apis", async (
@@ -193,7 +208,7 @@ app.MapPost("/api/gateway/apis", async (
     {
         api = await gatewayRepository.CreateAsync(input, GatewayCredential.Hash(apiKey), cancellationToken);
     }
-    catch (SqliteException exception) when (exception.SqliteErrorCode == 19)
+    catch (SqlException exception) when (exception.Number is 2601 or 2627)
     {
         return Results.Conflict(new { message = "An API with this name is already registered." });
     }
@@ -229,7 +244,7 @@ app.MapPut("/api/gateway/apis/{id}", async (
             ? Results.Ok(new { message = "API configuration updated." })
             : Results.NotFound();
     }
-    catch (SqliteException exception) when (exception.SqliteErrorCode == 19)
+    catch (SqlException exception) when (exception.Number is 2601 or 2627)
     {
         return Results.Conflict(new { message = "An API with this name is already registered." });
     }
@@ -325,9 +340,9 @@ GatewayApiView ToGatewayApiView(GatewayApi api, GatewayMetrics metrics)
         api.Enabled ? "Aktywne" : "Wyłączone");
 }
 
-app.MapGet("/api/storage", (BlogDatabaseOptions sqlite, NoSqlDatabaseOptions mongo) => Results.Ok(new
+app.MapGet("/api/storage", (NoSqlDatabaseOptions mongo) => Results.Ok(new
 {
-    primary = new { provider = "SQLite", path = sqlite.DatabasePath },
+    primary = new { provider = "SQL Server" },
     secondary = new
     {
         provider = "MongoDB",
@@ -344,14 +359,14 @@ app.MapGet("/api/incidents", async (int? limit, IScamIncidentStore incidentStore
     return Results.Ok(incidents);
 });
 
-app.MapGet("/api/workspace", (WorkspaceOptions options, BlogDatabaseOptions database) =>
+app.MapGet("/api/workspace", (WorkspaceOptions options) =>
 {
     var directory = new DirectoryInfo(options.RootPath);
     return Results.Ok(new
     {
         rootPath = options.RootPath,
         exists = directory.Exists,
-        databasePath = database.DatabasePath
+        databaseProvider = "SQL Server"
     });
 });
 
@@ -359,31 +374,32 @@ app.MapGet("/api/posts", async (IBlogRepository blogRepository) =>
 {
     var posts = await blogRepository.GetAllAsync();
     return Results.Ok(posts);
-});
+}).CacheOutput("BlogPosts");
 
 app.MapGet("/api/posts/latest", async (IBlogRepository blogRepository) =>
 {
     var post = await blogRepository.GetLatestAsync();
     return post is null ? Results.NotFound() : Results.Ok(post);
-});
+}).CacheOutput("BlogPosts");
 
 app.MapGet("/api/posts/{slug}", async (string slug, IBlogRepository blogRepository) =>
 {
     var post = await blogRepository.GetBySlugAsync(slug);
     return post is null ? Results.NotFound() : Results.Ok(post);
-});
+}).CacheOutput("BlogPosts");
 
 app.MapGet("/api/posts/{postId:int}/comments", async (int postId, IBlogRepository blogRepository) =>
 {
     var comments = await blogRepository.GetCommentsAsync(postId);
     return Results.Ok(comments);
-});
+}).CacheOutput("BlogComments");
 
 app.MapPost("/api/posts/{postId:int}/comments", async (
     int postId,
     BlogCommentInput input,
     IBlogRepository blogRepository,
     IRiskAnalyzer riskAnalyzer,
+    IOutputCacheStore outputCacheStore,
     CancellationToken cancellationToken) =>
 {
     var validation = BlogCommentValidator.Validate(input);
@@ -404,6 +420,10 @@ app.MapPost("/api/posts/{postId:int}/comments", async (
     }
 
     var created = await blogRepository.CreateCommentAsync(postId, input, cancellationToken);
+    if (created is not null)
+    {
+        await outputCacheStore.EvictByTagAsync("blog-comments", cancellationToken);
+    }
     return created is null
         ? Results.NotFound()
         : Results.Created($"/api/posts/{postId}/comments/{created.Id}", created);
@@ -415,6 +435,7 @@ app.MapPost("/api/posts", async (
     IRiskAnalyzer riskAnalyzer,
     IBlockExplanationProvider blockExplanationProvider,
     IScamIncidentStore scamIncidentStore,
+    IOutputCacheStore outputCacheStore,
     CancellationToken cancellationToken) =>
 {
     var validation = BlogPostValidator.Validate(input);
@@ -437,6 +458,7 @@ app.MapPost("/api/posts", async (
     }
 
     var created = await blogRepository.CreateAsync(input);
+    await outputCacheStore.EvictByTagAsync("blog-posts", cancellationToken);
     return Results.Created($"/api/posts/{created.Slug}", created);
 });
 
@@ -446,6 +468,7 @@ app.MapPut("/api/posts/{id:int}", async (
     IBlogRepository blogRepository,
     IRiskAnalyzer riskAnalyzer,
     IBlockExplanationProvider blockExplanationProvider,
+    IOutputCacheStore outputCacheStore,
     CancellationToken cancellationToken) =>
 {
     var validation = BlogPostValidator.Validate(input);
@@ -467,6 +490,10 @@ app.MapPut("/api/posts/{id:int}", async (
     }
 
     var updated = await blogRepository.UpdateAsync(id, input);
+    if (updated is not null)
+    {
+        await outputCacheStore.EvictByTagAsync("blog-posts", cancellationToken);
+    }
     return updated is null ? Results.NotFound() : Results.Ok(updated);
 });
 

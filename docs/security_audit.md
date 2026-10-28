@@ -16,12 +16,12 @@ Przeglad obejmuje:
 | --- | --- | --- |
 | Walidacja danych wejsciowych | OK | `BlogPostValidator`, modele Pydantic |
 | Blokada tresci ryzykownych | OK | `RiskAnalyzer`, test `CreatePost_DoesNotPersistPostWhenRiskIsDetected` |
-| SQL injection | OK | Parametry `SqliteCommand.Parameters.AddWithValue` |
+| SQL injection | OK | Parametry `SqlCommand.Parameters.AddWithValue` |
 | XSS w wyswietlaniu wpisow | OK | `escapeHtml` w `wwwroot/app.js` |
 | Sekrety w repozytorium | OK | Brak kluczy; dokument `docs/cryptography.md` opisuje zmienne srodowiskowe |
 | Kryptografia | OK | PBKDF2-HMAC-SHA256 i AES-GCM-256 z testami |
 | Testy regresyjne | OK | `dotnet test AntiScamBlog.sln`, `python -m pytest` |
-| Artefakty builda i baza runtime | OK | `.gitignore` ignoruje `bin/`, `obj/`, pliki SQLite runtime |
+| Artefakty builda i baza runtime | OK | `.gitignore` ignoruje `bin/`, `obj/`, pliki SQL Server runtime |
 
 ## Ryzyka szczatkowe
 

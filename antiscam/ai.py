@@ -340,7 +340,7 @@ class KnowledgeGraph:
 
 def cloud_deployment_profile() -> dict[str, str]:
     return {
-        "iaas": "VM or container host for the API and SQLite volume",
+        "iaas": "VM or container host for the API and SQL Server instance",
         "paas": "Managed App Service with environment-based configuration",
         "faas": "Serverless scan endpoint for bursty message checks",
         "saas": "Hosted AntiScam dashboard consumed by end users",

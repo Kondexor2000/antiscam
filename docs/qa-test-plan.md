@@ -8,14 +8,14 @@ głównego repozytorium.
 ## Zakres i wymagania
 
 Projekt składa się z Python AntiScam API (FastAPI) oraz C# Blog/API Platform
-(ASP.NET Core i SQLite). Do testów potrzebne są:
+(ASP.NET Core i SQL Server). Do testów potrzebne są:
 
 - Python 3.10 lub nowszy oraz `pip`,
 - .NET SDK 8.0 lub nowszy,
 - PowerShell.
 
 MongoDB i zewnętrzna usługa AI nie są wymagane do automatycznych testów. Testy
-.NET uruchamiają API w pamięci, używają tymczasowej bazy SQLite i zastępują
+.NET uruchamiają API w pamięci, używają tymczasowej bazy SQL Server i zastępują
 integracje testowymi implementacjami.
 
 ## Przygotowanie środowiska
@@ -70,7 +70,7 @@ obraz kontenera; nie wykonuje poleceń .NET.
 
 Testy Python obejmują walidację API, klasyfikację ryzyka, normalizację,
 analizę linków, modele AI/ML i scenariusze złośliwych danych. Testy .NET
-obejmują logikę jednostkową oraz integrację API, repozytorium SQLite,
+obejmują logikę jednostkową oraz integrację API, repozytorium SQL Server,
 publikowanie wpisów i komentarzy, uwierzytelnianie, Control Plane i Gateway.
 
 Do diagnozowania regresji można uruchamiać wybrane warstwy:
@@ -84,7 +84,7 @@ dotnet test tests\AntiScam.Blog.Api.Tests\AntiScam.Blog.Api.Tests.csproj --filte
 
 ## Smoke test C#
 
-Skrypt uruchamia rzeczywiste API C# na osobnej, tymczasowej bazie SQLite,
+Skrypt uruchamia rzeczywiste API C# na osobnej, tymczasowej bazie SQL Server,
 sprawdza podstawowe przepływy HTTP i domyślnie zatrzymuje serwer oraz usuwa
 utworzone pliki tymczasowe:
 
@@ -109,7 +109,7 @@ W pierwszym terminalu PowerShell ustaw osobną bazę oraz losowy klucz
 administracyjny, a następnie uruchom API C#:
 
 ```powershell
-$env:ANTISCAM_BLOG_DB = Join-Path $env:TEMP ("antiscam-qa-" + [guid]::NewGuid().ToString("N") + ".sqlite")
+$env:ANTISCAM_BLOG_CONNECTION_STRING = 'Server=(localdb)\MSSQLLocalDB;Database=AntiScamBlog;Integrated Security=True;TrustServerCertificate=True'
 $env:ANTISCAM_CONTROL_PLANE_KEY = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
 dotnet run --project src\AntiScam.Blog.Api\AntiScam.Blog.Api.csproj --urls http://localhost:5000
 ```
@@ -130,8 +130,8 @@ Wysyłaj zapytania do `http://localhost:5000` i porównuj wynik z kryteriami:
 | ID | Scenariusz | Oczekiwany wynik |
 | --- | --- | --- |
 | C01 | `GET /api/health` | `200`; pole `status` ma wartość `ok`. |
-| C02 | `GET /api/workspace` | `200`; `exists` ma wartość `true`, a `databasePath` wskazuje tymczasową bazę QA. |
-| C03 | `GET /api/storage` | `200`; magazyn podstawowy to SQLite. |
+| C02 | `GET /api/workspace` | `200`; `exists` ma wartość `true`, a `databaseProvider` ma wartość `SQL Server`. |
+| C03 | `GET /api/storage` | `200`; magazyn podstawowy to SQL Server. |
 | C04 | `GET /api/posts` | `200`; lista zawiera co najmniej dwa wpisy startowe. |
 | C05 | Utworzenie wpisu z neutralną treścią przez `POST /api/posts` | `201`; odpowiedź zawiera `slug`, a `GET /api/posts/{slug}` zwraca utworzony wpis. |
 | C06 | Utworzenie wpisu zawierającego żądanie kodu BLIK przez `POST /api/posts` | `422`; wpis nie pojawia się na liście. |
@@ -204,8 +204,7 @@ rejestrację po zakończeniu.
 
 ## Zakończenie testów i zgłaszanie błędów
 
-Po zatrzymaniu obu serwerów można usunąć tylko tymczasową bazę wskazaną w
-`$env:ANTISCAM_BLOG_DB`. Nie usuwaj domyślnej bazy projektu.
+Po testach usuń wyłącznie bazę QA utworzoną na osobnej instancji SQL Server; nie usuwaj bazy projektu.
 
 Zgłoszenie defektu powinno zawierać: system operacyjny, wersje Python/.NET,
 identyfikator scenariusza, kroki odtworzenia, wynik oczekiwany i rzeczywisty

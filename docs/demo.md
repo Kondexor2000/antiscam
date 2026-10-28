@@ -19,7 +19,7 @@ dotnet test AntiScamBlog.sln
 
 ## Automatyczne wykonanie demonstracji
 
-Skrypt `Invoke-Demo.ps1` uruchamia na tymczasowej bazie SQLite scenariusze C# z
+Skrypt `Invoke-Demo.ps1` uruchamia na tymczasowej bazie SQL Server scenariusze C# z
 Demo 1-8. Sprawdza odpowiedzi HTTP i przerywa dzialanie przy pierwszej
 niezgodnosci.
 
@@ -37,7 +37,7 @@ Wariant uruchomienia na innym porcie:
 
 Testy .NET sa zapisane w projekcie `tests/AntiScam.Blog.Api.Tests` i korzystaja
 z xUnit. Nie wymagaja uruchomionego serwera: testy integracyjne startuja API w
-pamieci, tworza osobna tymczasowa baze SQLite oraz zastepuja integracje AI i
+pamieci, tworza osobna tymczasowa baze SQL Server oraz zastepuja integracje AI i
 MongoDB deterministycznymi implementacjami testowymi.
 
 Uruchom wszystkie 25 przypadkow testowych:
@@ -75,7 +75,7 @@ dotnet test tests\AntiScam.Blog.Api.Tests\AntiScam.Blog.Api.Tests.csproj --filte
 | --- | --- |
 | `GET /api/posts` | Zwraca co najmniej dwa wpisy startowe. |
 | `GET /api/posts/latest` | Zwraca najnowszy wpis z listy wpisow. |
-| `GET /api/storage` | Raportuje SQLite jako magazyn glowny oraz aktywny MongoDB jako magazyn incydentow. |
+| `GET /api/storage` | Raportuje SQL Server jako magazyn glowny oraz aktywny MongoDB jako magazyn incydentow. |
 | `GET /api/incidents` | Z testowym magazynem incydentow zwraca pusta liste. |
 | `POST /api/posts` | Poprawny wpis zwraca `201 Created`, otrzymuje slug i jest dostepny przez `GET`. |
 | `POST /api/posts` | Wpis bez tytulu zwraca `400 Bad Request`. |
@@ -199,7 +199,7 @@ Oczekiwany wynik: `422`. Komentarz nie jest zapisywany, a odpowiedz zawiera ocen
 
 ## Demo 5: stan API i magazynow C#
 
-Ponizsze zapytania pokazuja stan aplikacji oraz konfiguracje magazynow. SQLite
+Ponizsze zapytania pokazuja stan aplikacji oraz konfiguracje magazynow. SQL Server
 przechowuje wpisy, uzytkownikow i sesje; MongoDB, jesli jest dostepny, przechowuje
 incydenty zablokowanych wpisow.
 
@@ -210,7 +210,7 @@ Invoke-RestMethod -Uri "http://localhost:5000/api/incidents?limit=10"
 Invoke-RestMethod -Uri http://localhost:5000/api/workspace
 ```
 
-Oczekiwany wynik: zdrowie API ma status `ok`, a `/api/storage` wskazuje SQLite
+Oczekiwany wynik: zdrowie API ma status `ok`, a `/api/storage` wskazuje SQL Server
 jako magazyn podstawowy. Lista incydentow moze byc pusta, gdy MongoDB nie jest
 uruchomione albo nie zablokowano jeszcze zadnego wpisu.
 

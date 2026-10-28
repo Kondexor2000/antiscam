@@ -24,9 +24,9 @@ document.querySelector(".api-panel .text-button")?.remove();
 document.querySelector(".api-panel thead tr").insertAdjacentHTML("beforeend", "<th>GATEWAY</th><th></th>");
 document.querySelector(".region b").textContent = "Gateway uruchomiony";
 document.querySelector(".region small").textContent = "Metryki bieżącego procesu";
-document.querySelector("footer span:nth-child(2)").textContent = "Metryki procesu · SQLite";
+document.querySelector("footer span:nth-child(2)").textContent = "Metryki procesu · MS-SQL";
 document.querySelector(".org-switch b").textContent = "AntiScam";
-document.querySelector(".org-switch small").textContent = "Pojedyncza instancja · SQLite";
+document.querySelector(".org-switch small").textContent = "Pojedyncza instancja · MS-SQL";
 document.querySelector(".user b").textContent = "Administrator";
 document.querySelector(".user small").textContent = "Control Plane";
 document.querySelector(".avatar").textContent = "CP";
@@ -104,7 +104,7 @@ async function loadMetrics() {
     ]);
     const averageLatency = Number(gateway.averageLatencyMs);
     metrics.innerHTML = `
-      <article class="metric-card"><div class="metric-top"><span>ZAREJESTROWANE API</span><span class="metric-icon blue">⌘</span></div><div class="metric-value">${document.querySelector(".nav-count").textContent}</div><div class="metric-foot">Trwale zapisane w SQLite</div></article>
+      <article class="metric-card"><div class="metric-top"><span>ZAREJESTROWANE API</span><span class="metric-icon blue">⌘</span></div><div class="metric-value">${document.querySelector(".nav-count").textContent}</div><div class="metric-foot">Trwale zapisane w MS-SQL</div></article>
       <article class="metric-card"><div class="metric-top"><span>ŻĄDANIA GATEWAYA</span><span class="metric-icon violet">↗</span></div><div class="metric-value">${Number(gateway.requests).toLocaleString("pl-PL")}</div><div class="metric-foot">Przekazane do upstreamów od ${new Date(gateway.startedAt).toLocaleTimeString("pl-PL")}</div></article>
       <article class="metric-card"><div class="metric-top"><span>ŻĄDANIA BLOG API</span><span class="metric-icon blue">▤</span></div><div class="metric-value">${Number(blog.requests).toLocaleString("pl-PL")}</div><div class="metric-foot">Wpisy i komentarze od ${new Date(blog.startedAt).toLocaleTimeString("pl-PL")}</div></article>
       <article class="metric-card"><div class="metric-top"><span>ŚREDNIE OPÓŹNIENIE</span><span class="metric-icon green">◷</span></div><div class="metric-value">${averageLatency.toFixed(1)}<span class="metric-unit"> ms</span></div><div class="metric-foot">Czas obsługi po stronie gatewaya</div></article>

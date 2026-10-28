@@ -1,8 +1,13 @@
 .git
+.env
+.env.*
+!.env.example
 .venv
 .pytest_cache
 __pycache__
 **/__pycache__
+**/bin
+**/obj
 *.py[cod]
 *.pdf
 *.sqlite*
@@ -16,5 +21,4 @@ data
 docs
 models
 secure_backups
-src
 tests
