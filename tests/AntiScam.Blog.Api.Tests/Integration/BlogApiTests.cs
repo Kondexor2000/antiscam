@@ -60,13 +60,13 @@ public sealed class BlogApiTests : IClassFixture<BlogApiFactory>
     }
 
     [Fact]
-    public async Task Storage_LeavesSqliteAsPrimaryAndEnablesMongoIncidentStore()
+    public async Task Storage_ReportsSqlServerAsPrimaryAndEnablesMongoIncidentStore()
     {
         using var response = await _client.GetAsync("/api/storage");
 
         response.EnsureSuccessStatusCode();
         using var storage = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        Assert.Equal("SQLite", storage.RootElement.GetProperty("primary").GetProperty("provider").GetString());
+        Assert.Equal("SQL Server", storage.RootElement.GetProperty("primary").GetProperty("provider").GetString());
         Assert.Equal("MongoDB", storage.RootElement.GetProperty("secondary").GetProperty("provider").GetString());
         Assert.True(storage.RootElement.GetProperty("secondary").GetProperty("enabled").GetBoolean());
     }

@@ -2,7 +2,7 @@
 
 ## Cel
 
-Student potrafi wykazac, ze API blokuje publikacje tresci ryzykownych i nie zapisuje ich do SQLite.
+Student potrafi wykazac, ze API blokuje publikacje tresci ryzykownych i nie zapisuje ich do SQL Server.
 
 ## Zadania
 

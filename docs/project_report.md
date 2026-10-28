@@ -7,7 +7,7 @@ AntiScam jest projektem demonstracyjno-laboratoryjnym pokazujacym, jak wykrywac 
 Projekt sklada sie z dwoch czesci:
 
 - Python/FastAPI: silnik oceny ryzyka wiadomosci.
-- C# ASP.NET Core WebAPI: blog edukacyjny z HTML, SQLite i blokada publikacji tresci ryzykownych.
+- C# ASP.NET Core WebAPI: blog edukacyjny z HTML, SQL Server i blokada publikacji tresci ryzykownych.
 
 ## Zakres bezpieczenstwa
 
@@ -18,14 +18,14 @@ Projekt obejmuje:
 - scoring slow kluczowych,
 - walidacje danych wejsciowych,
 - blokowanie publikacji wpisow `MEDIUM RISK` i `HIGH RISK`,
-- parametryzowane zapytania SQLite,
+- parametryzowane zapytania SQL Server,
 - escaping tresci w frontendzie,
 - przyklady kryptografii: PBKDF2-HMAC-SHA256 oraz AES-GCM-256,
 - testy jednostkowe i integracyjne.
 
 ## Architektura
 
-Pythonowy silnik AntiScam (`antiscam/`) odpowiada za lekka analize tekstu i endpoint `/scan`. Czesc C# (`src/AntiScam.Blog.Api/`) udostepnia blog, statyczne pliki HTML/CSS/JS, REST API oraz repozytorium SQLite.
+Pythonowy silnik AntiScam (`antiscam/`) odpowiada za lekka analize tekstu i endpoint `/scan`. Czesc C# (`src/AntiScam.Blog.Api/`) udostepnia blog, statyczne pliki HTML/CSS/JS, REST API oraz repozytorium SQL Server.
 
 Ryzykowny wpis blogowy nie jest zapisywany. API zwraca `422 Unprocessable Entity` z wynikiem oceny ryzyka, co jest testowane w `tests/AntiScam.Blog.Api.Tests/Integration/BlogApiTests.cs`.
 
@@ -48,7 +48,7 @@ python -m pytest
 
 Oczekiwany wynik po aktualizacji:
 
-- testy C#: obejmuja walidacje, slugi, ocene ryzyka, blokade publikacji, SQLite, HTML i kryptografie,
+- testy C#: obejmuja walidacje, slugi, ocene ryzyka, blokade publikacji, SQL Server, HTML i kryptografie,
 - testy Python: obejmuja scoring, modele, linki, API i workflow.
 
 ## Ograniczenia

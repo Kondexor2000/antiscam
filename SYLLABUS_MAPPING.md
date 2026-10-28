@@ -14,7 +14,7 @@ Ten dokument mapuje wymagania z trzech sylabusow PDF na elementy repozytorium An
 | --- | --- | --- |
 | W1 | Popularne wektory ataku na infrastrukture lokalna lub zdalna | `antiscam/engine.py`, `antiscam/links.py`, `src/AntiScam.Blog.Api/Services/RiskAnalyzer.cs`, `docs/project_report.md` |
 | U1 | Wykrywanie i zapobieganie popularnym wektorom ataku | Endpoint `POST /scan`, blokada publikacji `POST /api/posts`, testy integracyjne API |
-| U2 | Przeglad kodu pod katem podatnosci | `docs/security_audit.md`, testy regresyjne, brak konkatenacji SQL w repozytorium SQLite |
+| U2 | Przeglad kodu pod katem podatnosci | `docs/security_audit.md`, testy regresyjne, brak konkatenacji SQL w repozytorium SQL Server |
 | U3 | Korzystanie z wlasciwych zrodel | Sekcja z literatura i zrodlami w `docs/project_report.md` oraz `docs/security_audit.md` |
 | U4 | Przeciwdzialanie incydentom | `docs/demo.md`, `docs/labs/lab-03-incident-response.md`, odpowiedzi `422` dla ryzykownych wpisow |
 | K1-K2 | Ciagle uczenie i kontekst spoleczny | Sekcje etyki, ograniczen i social engineering w dokumentacji |
@@ -25,9 +25,9 @@ Ten dokument mapuje wymagania z trzech sylabusow PDF na elementy repozytorium An
 | --- | --- | --- |
 | W1 | Metody rozwiazywania problemow bezpieczenstwa | Scoring phishingu, walidacja wejscia, testy, audyt |
 | W2 | Prawne wymogi bezpiecznych systemow | `docs/project_report.md` opisuje minimalizacje danych, prywatnosc i odpowiedzialnosc |
-| W3 | Narzedzia zapewniania bezpieczenstwa | FastAPI, ASP.NET Core, SQLite, testy, checklisty audytowe |
+| W3 | Narzedzia zapewniania bezpieczenstwa | FastAPI, ASP.NET Core, SQL Server, testy, checklisty audytowe |
 | U1 | Ocena implementacji i ograniczanie zagrozen | `docs/security_audit.md`, `RiskAnalyzer`, blokada publikacji ryzyka |
-| U2 | Bezpieczna implementacja systemow | Parametryzowane SQLite, escaping HTML, walidacja i testy |
+| U2 | Bezpieczna implementacja systemow | Parametryzowane zapytania SQL Server, escaping HTML, walidacja i testy |
 | U3 | Dobor narzedzi bezpieczenstwa | Dokumentacja wyboru narzedzi w raporcie i laboratoriach |
 | U4/K1 | Wspolpraca i projekt | `docs/labs/`, `docs/demo.md`, `docs/presentation_outline.md` |
 

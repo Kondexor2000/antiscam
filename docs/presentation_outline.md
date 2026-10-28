@@ -13,7 +13,7 @@ Phishing, manipulacja, linki i prosby o kody BLIK sa realnym zagrozeniem dla uzy
 
 ## Slajd 3: Architektura
 
-Python/FastAPI odpowiada za skanowanie wiadomosci. C# ASP.NET Core WebAPI odpowiada za blog, SQLite, HTML i blokade publikacji.
+Python/FastAPI odpowiada za skanowanie wiadomosci. C# ASP.NET Core WebAPI odpowiada za blog, SQL Server, HTML i blokade publikacji.
 
 ## Slajd 4: Scoring ryzyka
 

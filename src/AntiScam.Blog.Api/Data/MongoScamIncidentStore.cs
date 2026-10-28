@@ -6,7 +6,7 @@ namespace AntiScam.Blog.Api.Data;
 
 /// <summary>
 /// Persists rejected submissions in MongoDB. Failures are logged so that an optional
-/// audit store never changes the HTTP result or the SQLite blog workflow.
+/// audit store never changes the HTTP result or the SQL Server blog workflow.
 /// </summary>
 public sealed class MongoScamIncidentStore : IScamIncidentStore
 {
