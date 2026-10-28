@@ -103,8 +103,6 @@ app.UseStaticFiles(new StaticFileOptions
         context.Context.Response.Headers.Expires = "0";
     }
 });
-app.UseOutputCache();
-
 var blogRequestMetrics = app.Services.GetRequiredService<BlogRequestMetrics>();
 app.Use(async (context, next) =>
 {
@@ -122,6 +120,7 @@ app.Use(async (context, next) =>
     });
     await next();
 });
+app.UseOutputCache();
 
 var repository = app.Services.GetRequiredService<IBlogRepository>();
 await repository.InitializeAsync();
