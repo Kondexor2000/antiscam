@@ -14,7 +14,7 @@ The implementation is intentionally lightweight and deterministic. It demonstrat
 | --- | --- | --- | --- |
 | `1.pdf` | Deep Learning | ML models, neural/deep learning concepts, NLP examples, Python labs | `NaiveBayesTextClassifier`, text vectors, `docs/ai_labs/lab-01-machine-learning.md` |
 | `2.pdf` | Mathematical Foundations of Computer Science | vectors, matrices, Bayes, loss/quality metrics, optimization | bag-of-words vectors, cosine similarity, Naive Bayes log scores, evaluation labs |
-| `3.pdf` | Machine Learning Engineering | training/evaluation, experiment control, CI/container/cloud awareness | testable classifier, `docs/ai_labs/lab-05-ml-engineering-cloud.md`, existing `dotnet test` and `python -m pytest` |
+| `3.pdf` | Machine Learning Engineering | training/evaluation, experiment control, CI/container/cloud awareness | testable classifier, `docs/ai_labs/lab-05-ml-engineering-cloud.md`, and `python -m pytest` |
 | `4.pdf` | Computer-Aided Translation | terminology extraction, domain dictionary, regex, translation memory, MT evaluation | `extract_terms`, `TranslationMemory`, `extract_named_entities`, CAT lab |
 | `5.pdf` | Dialogue Systems | chatbot, semantic parsing, dialogue management, text generation | `AntiScamDialogBot`, intents, responses, emotion-aware dialogue lab |
 | `6.pdf` | Knowledge Engineering | knowledge acquisition, knowledge representation, knowledge graphs | `KnowledgeGraph`, domain facts for phishing mitigation |

@@ -40,7 +40,7 @@ Run:
 ```powershell
 python -m pytest tests/unit/test_ai.py
 python -m pytest
-dotnet test AntiScamBlog.sln
+python -m pytest
 ```
 
 The tests check ML prediction, NLP preprocessing, n-gram scoring, translation memory, named entities, dialogue, emotion detection, knowledge graph queries and cloud-model coverage.
