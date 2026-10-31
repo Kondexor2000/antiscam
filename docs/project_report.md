@@ -65,3 +65,37 @@ Demonstracje powinny odbywac sie na danych testowych, bez prawdziwych danych oso
 - role i uwierzytelnianie dla panelu publikacji,
 - raport HTML/PDF z wynikow skanowania,
 - automatyczny pipeline CI z testami i audytem zaleznosci.
+
+## Plan weryfikacji jakosci i odpornosci
+
+Aby potwierdzic gotowosc projektu w trudniejszych scenariuszach, dalsza weryfikacja powinna objac cztery obszary:
+
+### Wydajnosc
+
+- Zmierzyc czas odpowiedzi, przepustowosc i zuzycie zasobow dla typowego oraz szczytowego obciazenia.
+- Wykonac testy obciazeniowe i dlugotrwale dla endpointu `/scan` oraz API bloga.
+- Ustalic progi akceptacji, np. maksymalny czas odpowiedzi p95 przy okreslonej liczbie rownoleglych zadan.
+- Zidentyfikowac waskie gardla w analizie tekstu, komunikacji miedzy uslugami i dostepie do SQL Server.
+
+### Niezawodnosc
+
+- Sprawdzic zachowanie przy timeoutach, ponawianiu zadan, niedostepnosci SQL Server lub silnika oceny ryzyka oraz po restarcie uslug.
+- Zweryfikowac, ze awaria zaleznosci nie powoduje utraty ani niekontrolowanego zapisu danych i jest sygnalizowana czytelnym bledem.
+- Opisac i sprawdzic kopie zapasowe oraz odtwarzanie danych.
+- Zweryfikowac monitoring, logowanie bledow i alerty dla awarii oraz pogorszenia czasu odpowiedzi.
+
+### Jakosc architektury
+
+- Przejrzec granice odpowiedzialnosci miedzy silnikiem Python, API ASP.NET Core, frontendem i repozytorium SQL Server.
+- Sprawdzic zaleznosci miedzy komponentami, obsluge bledow i mozliwosc niezaleznego testowania oraz rozwijania modulow.
+- Przesledzic kluczowe przeplywy end-to-end: skanowanie wiadomosci oraz probę publikacji ryzykownego wpisu.
+- Oceniac zmiany pod katem skalowania, ryzyka efektow ubocznych i zgodnosci kontraktow API.
+
+### Bezpieczenstwo w trudniejszych scenariuszach
+
+- Przejrzec uprawnienia, konfiguracje sekretow, walidacje danych wejsciowych, izolacje danych uzytkownikow oraz wrazliwe informacje w logach.
+- Testowac prompt injection i proby wyciagania danych, jesli do projektu zostanie dodany model jezykowy lub komponent korzystajacy z instrukcji uzytkownika.
+- Sprawdzic naduzycia endpointow i narzedzi, w tym niebezpieczne lub powtorzone dzialania oraz niepoprawne i zlosliwe pliki, jesli obsluga plikow zostanie wdrozona.
+- Potwierdzic, ze bledy i nietypowe wejscia nie prowadza do ujawnienia danych, obejscia blokady publikacji ani niekontrolowanego wykonania operacji.
+
+Dla kazdego obszaru nalezy zapisac scenariusze, mierniki i kryteria zaliczenia. Przykladowe kryteria to: czas p95 ponizej ustalonego limitu przy zadanym obciazeniu, brak utraty danych po awarii, kontrolowane zachowanie przy niedostepnej zaleznosci oraz brak dostepu do danych spoza zakresu uprawnien.
