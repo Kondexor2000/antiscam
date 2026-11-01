@@ -1,0 +1,38 @@
+import http from 'k6/http';
+import { check, sleep } from 'k6';
+
+const baseUrl = (__ENV.PYTHON_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
+
+export const options = {
+  summaryTrendStats: ['avg', 'med', 'min', 'max', 'p(90)', 'p(95)', 'p(99)'],
+  scenarios: {
+    scan: {
+      executor: 'ramping-arrival-rate',
+      startRate: 5,
+      timeUnit: '1s',
+      preAllocatedVUs: 10,
+      maxVUs: 100,
+      stages: [
+        { target: 20, duration: '30s' },
+        { target: 20, duration: '1m' },
+        { target: 0, duration: '10s' },
+      ],
+    },
+  },
+  thresholds: {
+    http_req_failed: ['rate<0.01'],
+    http_req_duration: ['p(95)<1000', 'p(99)<2000'],
+  },
+};
+
+export default function () {
+  const response = http.post(`${baseUrl}/scan`, JSON.stringify({
+    text: 'Wyślij kod BLIK 123456 natychmiast! https://example.test/login',
+  }), { headers: { 'Content-Type': 'application/json' } });
+  check(response, { 'scan returns 200': (r) => r.status === 200 });
+  sleep(0.1);
+}
+
+export function handleSummary(data) {
+  return { 'artifacts/load-scan.json': JSON.stringify(data, null, 2) };
+}

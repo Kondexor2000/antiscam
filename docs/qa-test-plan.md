@@ -209,3 +209,33 @@ Po testach usuń wyłącznie bazę QA utworzoną na osobnej instancji SQL Server
 Zgłoszenie defektu powinno zawierać: system operacyjny, wersje Python/.NET,
 identyfikator scenariusza, kroki odtworzenia, wynik oczekiwany i rzeczywisty
 oraz status HTTP/fragment odpowiedzi po usunięciu sekretów i danych osobowych.
+
+## Powtarzalne dowody obciążenia i odporności
+
+Workflow GitHub Actions `Quality evidence` uruchamia testy Python i .NET, testy
+obciążeniowe k6 oraz audyt zależności i statyczną analizę kodu Python. Raporty są
+publikowane jako artefakty workflow: `load-test-report`, `python-test-results`,
+`dotnet-test-results` i `security-report`. k6 mierzy p50, p95, p99, throughput
+oraz odsetek błędów dla `/scan` i odczytu `/api/posts`. Progi startowe wynoszą
+p95 < 1000 ms, p99 < 2000 ms i mniej niż 1% błędów; są progami projektu, nie
+deklaracją przepustowości produkcyjnej.
+
+Lokalne przykładowe wyniki są zachowane w `docs/evidence/`: baseline k6,
+raport awarii i odtworzenia backupu oraz smoke testy bezpieczeństwa API.
+
+Lokalny test awarii i odtwarzania działa na uruchomionym, izolowanym stosie
+Docker Compose. Zapisuje wpis kontrolny, wykonuje backup bazy, zatrzymuje SQL
+Server i silnik Python, sprawdza powrót usług, usuwa wpis kontrolny i odtwarza
+backup. Skrypt zatrzymuje i odtwarza komponenty, dlatego wymaga jawnego
+potwierdzenia przez zmienną `ANTISCAM_ALLOW_RESILIENCE_TESTS=YES`:
+
+```powershell
+$env:MSSQL_SA_PASSWORD = 'Local_test_Password!2026'
+$env:ANTISCAM_CONTROL_PLANE_KEY = 'local-resilience-test-key-0123456789abcdef'
+$env:ANTISCAM_ALLOW_RESILIENCE_TESTS = 'YES'
+docker compose up -d --build
+.\scripts\resilience-smoke.ps1
+```
+
+Wynik trafia do `artifacts/resilience-report.md`. Uruchamiaj skrypt wyłącznie na
+lokalnym stosie testowym; nie kieruj go do współdzielonej ani produkcyjnej bazy.

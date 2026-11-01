@@ -119,6 +119,13 @@ MongoDB jest opcjonalny i przechowuje odrzucone zgłoszenia. W `.env` ustaw
 `ANTISCAM_MONGO_ENABLED=true`, a następnie uruchom `docker compose --profile
 nosql up --build -d`. Domyślnie integracja MongoDB pozostaje wyłączona.
 
+## Kubernetes
+
+Katalog `k8s/` zawiera manifesty Kustomize dla obu API, SQL Server i Redis,
+wraz z trwałymi wolumenami, probe'ami zdrowia oraz sekretem tworzonym poza
+repozytorium. Instrukcje budowania obrazów, przygotowania sekretu, wdrożenia i
+opcjonalnego włączenia MongoDB znajdują się w [k8s/README.md](k8s/README.md).
+
 ## Jenkins CI
 
 Główny pipeline znajduje się w `Jenkinsfile`. Zadanie Jenkins powinno wskazywać

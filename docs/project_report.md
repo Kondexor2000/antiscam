@@ -99,3 +99,15 @@ Aby potwierdzic gotowosc projektu w trudniejszych scenariuszach, dalsza weryfika
 - Potwierdzic, ze bledy i nietypowe wejscia nie prowadza do ujawnienia danych, obejscia blokady publikacji ani niekontrolowanego wykonania operacji.
 
 Dla kazdego obszaru nalezy zapisac scenariusze, mierniki i kryteria zaliczenia. Przykladowe kryteria to: czas p95 ponizej ustalonego limitu przy zadanym obciazeniu, brak utraty danych po awarii, kontrolowane zachowanie przy niedostepnej zaleznosci oraz brak dostepu do danych spoza zakresu uprawnien.
+
+## Dowody z automatycznej weryfikacji
+
+Workflow GitHub Actions `.github/workflows/quality-evidence.yml` uruchamia testy Python i .NET, testy obciazeniowe k6 endpointow `/scan` i `/api/posts` oraz audyt zaleznosci Python/NuGet i statyczna analize kodu Python. Artefakt `load-test-report` zapisuje p50, p95, p99, throughput i odsetek bledow dla konkretnego przebiegu. Artefakt `security-report` przechowuje wyniki narzedzi audytowych. Sa to mierzalne raporty dla danego commita; wartosci wydajnosciowe nalezy odczytac z przebiegu CI, zamiast traktowac progi testowe jako uzyskane wyniki.
+
+Skrypt `scripts/resilience-smoke.ps1` sprawdza niedostepnosc i restart SQL Server oraz silnika Python, a nastepnie odtwarza baze z backupu i potwierdza odzyskanie wpisu kontrolnego. Uruchamia sie go na izolowanym stosie Docker Compose; wynik zostaje zapisany w `artifacts/resilience-report.md`.
+
+### Lokalny przebieg dowodowy: 2026-10-31
+
+Na izolowanym projekcie Docker Compose uruchomiono dwa 100-sekundowe testy k6: maksymalnie 20 req/s dla `/scan` i 10 req/s dla odczytu `/api/posts`. Oba przeszly bez bledow HTTP. `/scan` uzyskal p50 4,41 ms, p95 5,23 ms, p99 5,84 ms i sredni throughput 16,73 req/s; API bloga p50 2,62 ms, p95 3,34 ms, p99 3,92 ms i sredni throughput 8,29 req/s. To lokalny wynik na Docker Desktop, a nie gwarantowana przepustowosc produkcyjna.
+
+Test odpornosci przeszedl wszystkie scenariusze: backup SQL Server, blad API przy zatrzymanej bazie (HTTP 500), restart SQL i API z zachowaniem danych, restart silnika Python oraz odtworzenie backupu z odzyskaniem wpisu kontrolnego. Dziesiec scenariuszy bezpieczenstwa API dotyczacych obfuskacji BLIK, podszytych domen, HTML/JS i izolacji zadan uzyskalo wynik PASS. Pelne raporty zapisano w `docs/evidence/`. Workflow CI jest skonfigurowany, ale jego przebieg GitHub Actions wymaga wypchniecia tych zmian.
