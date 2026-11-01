@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: antiscam-config
+data:
+  ASPNETCORE_ENVIRONMENT: Production
+  ASPNETCORE_URLS: http://+:8080
+  ASPNETCORE_HTTP_PORTS: "8080"
+  Network__HttpPort: "8080"
+  NoSql__Enabled: "false"
+  ANTISCAM_BLOG_CONNECTION_STRING: >-
+    Server=sqlserver,1433;Database=AntiScamBlog;User Id=sa;Encrypt=True;TrustServerCertificate=True
+  ANTISCAM_REDIS_CONNECTION_STRING: redis:6379
+  ANTISCAM_MONGO_CONNECTION_STRING: mongodb://mongodb:27017

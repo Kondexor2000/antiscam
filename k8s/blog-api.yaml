@@ -1,0 +1,89 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: blog-api
+spec:
+  selector:
+    app: blog-api
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: blog-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: blog-api
+  template:
+    metadata:
+      labels:
+        app: blog-api
+    spec:
+      initContainers:
+        - name: wait-for-sql
+          image: mcr.microsoft.com/mssql/server:2022-latest
+          command:
+            - /bin/bash
+            - -ec
+            - |
+              until /opt/mssql-tools18/bin/sqlcmd -S sqlserver,1433 -U sa -P "$MSSQL_SA_PASSWORD" -C -Q "IF DB_ID(N'AntiScamBlog') IS NULL CREATE DATABASE [AntiScamBlog];" -b; do
+                echo "Waiting for SQL Server..."
+                sleep 5
+              done
+          env:
+            - name: MSSQL_SA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: antiscam-secrets
+                  key: MSSQL_SA_PASSWORD
+      containers:
+        - name: blog-api
+          image: antiscam-blog-api:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: antiscam-config
+          env:
+            - name: MSSQL_SA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: antiscam-secrets
+                  key: MSSQL_SA_PASSWORD
+            - name: ANTISCAM_BLOG_CONNECTION_STRING
+              value: >-
+                Server=sqlserver,1433;Database=AntiScamBlog;User Id=sa;Password=$(MSSQL_SA_PASSWORD);Encrypt=True;TrustServerCertificate=True
+            - name: ANTISCAM_CONTROL_PLANE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: antiscam-secrets
+                  key: ANTISCAM_CONTROL_PLANE_KEY
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 768Mi
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            periodSeconds: 20
