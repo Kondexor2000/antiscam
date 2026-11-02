@@ -18,6 +18,9 @@ dependencies = [
     "deep-translator"
 ]
 
+[project.optional-dependencies]
+datasets = ["ucimlrepo>=0.0.7"]
+
 
 [project.scripts]
 antiscam = "antiscam.cli:main"

@@ -37,6 +37,8 @@ Instrukcje uruchamiania testów i ręcznej weryfikacji API znajdują się w [doc
 python -m pytest
 ```
 
+Publiczne zbiory danych do analiz desk research są opisane w [docs/datasets.md](docs/datasets.md). Pobierzesz je do `data/` poleceniem `python tools/fetch_datasets.py` po instalacji dodatku `python -m pip install -e ".[datasets]"`.
+
 ## Docker i CI
 
 Obraz API zbudujesz i uruchomisz z katalogu repozytorium:
