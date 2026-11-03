@@ -226,7 +226,7 @@ def explain_ai_assistance(text: str) -> AiAssistanceReport:
     scan_result = calculate_risk(text)
     scan_status = scan_result["status"]
     risk_score = scan_result["risk_score"]
-    scan_reasons = scan_result["reasons"]
+    scan_reasons = [_redact_sensitive_codes(reason) for reason in scan_result["reasons"]]
     blocked_after_scan = scan_status != "LOW RISK"
     scam_pattern = bag_of_words("pilny kod blik konto zablokowane kliknij link natychmiast")
     message_vector = bag_of_words(text)
@@ -242,7 +242,9 @@ def explain_ai_assistance(text: str) -> AiAssistanceReport:
         blocked_after_scan=blocked_after_scan,
         block_explanation=explain_scan_block(scan_status, risk_score, scan_reasons),
         scan_reasons=scan_reasons,
-        extracted_terms=extract_terms(text)[:8],
+        extracted_terms=[
+            term for term in extract_terms(text) if not re.fullmatch(r"\d{6}", term)
+        ][:8],
         named_entities=extract_named_entities(text),
         scam_similarity=round(similarity, 4),
         what_ai_makes_easier=[
@@ -262,7 +264,11 @@ def explain_scan_block(scan_status: str, risk_score: int, scan_reasons: list[str
             f"with {risk_score}/100 risk."
         )
 
-    reason_text = "; ".join(scan_reasons) if scan_reasons else "the risk score crossed the blocking threshold"
+    reason_text = (
+        "; ".join(_redact_sensitive_codes(reason) for reason in scan_reasons)
+        if scan_reasons
+        else "the risk score crossed the blocking threshold"
+    )
     return (
         f"Sending was blocked because /scan classified the message as {scan_status} "
         f"with {risk_score}/100 risk. Signals: {reason_text}."
@@ -273,9 +279,15 @@ def explain_sending_block(text: str, scan_status: str, risk_score: int, scan_rea
     """Create the user-facing explanation used when sending/publishing is blocked."""
 
     bot_response = AntiScamDialogBot().respond(text)
-    important_terms = extract_terms(text)[:4]
+    important_terms = [
+        term for term in extract_terms(text) if not re.fullmatch(r"\d{6}", term)
+    ][:4]
     terms_text = ", ".join(important_terms) if important_terms else "brak wyraznych terminow"
-    reason_text = "; ".join(scan_reasons) if scan_reasons else "wynik ryzyka przekroczyl prog blokady"
+    reason_text = (
+        "; ".join(_redact_sensitive_codes(reason) for reason in scan_reasons)
+        if scan_reasons
+        else "wynik ryzyka przekroczyl prog blokady"
+    )
 
     if scan_status == "LOW RISK":
         explanation = (
@@ -294,6 +306,10 @@ def explain_sending_block(text: str, scan_status: str, risk_score: int, scan_rea
         explanation=explanation,
         recommended_action=bot_response.message,
     )
+
+
+def _redact_sensitive_codes(text: str) -> str:
+    return re.sub(r"\b\d{6}\b", "[REDACTED]", text)
 
 
 def _run_block_explanation_bridge() -> None:

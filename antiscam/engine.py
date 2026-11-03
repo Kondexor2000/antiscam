@@ -37,7 +37,7 @@ def calculate_risk(text: str) -> Dict:
     if r:
         risk_score *= 1.6 if s >= 60 else 1.25
         risk_score = max(risk_score, s)
-        reasons.append(r)
+        reasons.append(re.sub(r"\b\d{6}\b", "[REDACTED]", r))
 
     # LINKS
     link_analysis = analyze_links_detailed(text)
@@ -75,6 +75,11 @@ def calculate_risk(text: str) -> Dict:
     risk_score += intent_score * 0.5
     if intent_reason:
         reasons.append(intent_reason)
+
+    if link_analysis.typosquatting_links:
+        risk_score = max(risk_score, 90)
+    if r and s >= 60:
+        risk_score = max(risk_score, 60)
 
     # NORMALIZATION
     risk_score = max(0, min(int(risk_score), 100))

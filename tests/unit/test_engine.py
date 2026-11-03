@@ -132,6 +132,22 @@ class TestCalculateRisk:
         assert result["status"] == "HIGH RISK"
         assert any("Typosquatting links" in reason for reason in result["reasons"])
 
+    def test_calculate_risk_trusted_link_cannot_lower_typosquatting_floor(self):
+        text = "Czesc, spotkanie, normalnie https://g00gle.com https://google.com"
+
+        result = calculate_risk(text)
+
+        assert result["status"] == "HIGH RISK"
+        assert result["risk_score"] >= 90
+
+    def test_calculate_risk_trusted_link_cannot_lower_confirmed_blik_floor(self):
+        text = "Czesc, spotkanie normalnie, BLIK kod 123456 https://google.com"
+
+        result = calculate_risk(text)
+
+        assert result["risk_score"] >= 60
+        assert "123456" not in " ".join(result["reasons"])
+
     def test_calculate_risk_status_classifications(self):
         """Test risk classifications."""
         low_text = "Cześć spotkanie ok"

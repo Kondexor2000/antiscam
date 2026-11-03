@@ -118,6 +118,9 @@ def test_explain_ai_assistance_shows_practical_value():
     assert report.blocked_after_scan is True
     assert "blocked" in report.block_explanation
     assert report.scan_reasons
+    assert "123456" not in report.block_explanation
+    assert "123456" not in " ".join(report.scan_reasons)
+    assert "123456" not in report.extracted_terms
     assert report.scam_similarity > 0
     assert "Bank Polska" in report.named_entities
     assert any("blocked sending" in item for item in report.what_ai_makes_easier)
@@ -141,5 +144,6 @@ def test_explain_sending_block_mentions_ai_py_and_scan_reasons():
 
     assert report.source == "antiscam.ai"
     assert "ai.py" in report.explanation
-    assert "BLIK CONFIRMED: 123456" in report.explanation
+    assert "BLIK CONFIRMED: [REDACTED]" in report.explanation
+    assert "123456" not in report.explanation
     assert "Nie podawaj kodu" in report.recommended_action
