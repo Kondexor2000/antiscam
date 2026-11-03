@@ -5,6 +5,8 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.pipeline import Pipeline
 
+# The available UCI SMS corpus is English and the URL datasets contain
+# structured URL features, so neither is representative training data here.
 TRAINING_SAMPLES = (
     ("wyslij kod blik natychmiast ostatnia szansa", "scam"),
     ("konto zablokowane kliknij link i potwierdz dane", "scam"),
@@ -24,11 +26,17 @@ TRAINING_SAMPLES = (
     ("hej czy mozesz oddzwonic po pracy", "safe"),
 )
 
-MODEL_DIR = Path("models")
-MODEL_PATH = MODEL_DIR / "model.joblib"
+BASE_DIR = Path(__file__).resolve().parent
+MODEL_PATH = BASE_DIR / "models" / "model.joblib"
 
 
-def train() -> None:
+def train(model_path: Path = MODEL_PATH) -> None:
+    labels = {label for _, label in TRAINING_SAMPLES}
+    if labels != {"safe", "scam"}:
+        raise ValueError("Training samples must contain both 'safe' and 'scam' labels.")
+    if any(not text.strip() for text, _ in TRAINING_SAMPLES):
+        raise ValueError("Training samples must not contain empty messages.")
+
     classifier = Pipeline(
         [
             (
@@ -36,6 +44,7 @@ def train() -> None:
                 TfidfVectorizer(
                     ngram_range=(1, 2),
                     lowercase=True,
+                    strip_accents="unicode",
                 ),
             ),
             (
@@ -46,15 +55,14 @@ def train() -> None:
     )
 
     texts = [text for text, _ in TRAINING_SAMPLES]
-    labels = [label for _, label in TRAINING_SAMPLES]
+    target_labels = [label for _, label in TRAINING_SAMPLES]
 
-    classifier.fit(texts, labels)
+    classifier.fit(texts, target_labels)
 
-    MODEL_DIR.mkdir(exist_ok=True)
+    model_path.parent.mkdir(parents=True, exist_ok=True)
+    joblib.dump(classifier, model_path)
 
-    joblib.dump(classifier, MODEL_PATH)
-
-    print(f"Model zapisany: {MODEL_PATH}")
+    print(f"Model zapisany: {model_path}")
 
 
 if __name__ == "__main__":
