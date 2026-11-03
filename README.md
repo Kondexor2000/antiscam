@@ -39,6 +39,8 @@ python -m pytest
 
 Publiczne zbiory danych do analiz desk research są opisane w [docs/datasets.md](docs/datasets.md). Pobierzesz je do `data/` poleceniem `python tools/fetch_datasets.py` po instalacji dodatku `python -m pip install -e ".[datasets]"`.
 
+Analizę eksploracyjną plików CSV z `data/` uruchomisz po instalacji `python -m pip install -e ".[analysis]"` poleceniem `python tools/analyze_datasets.py`. Raporty zapisują się w `reports/data-analysis/`.
+
 ## Docker i CI
 
 Obraz API zbudujesz i uruchomisz z katalogu repozytorium:

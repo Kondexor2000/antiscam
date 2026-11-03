@@ -1,0 +1,4 @@
+dataset,rows,columns,duplicate_rows,missing_cells,missing_percentage,target_column,content_column,content_length_mean,content_length_median,content_length_max
+uci_phishing_websites.csv,11055,31,5206,0,0.0,result,,,,
+uci_phiusiil_phishing_url.csv,235795,55,0,0,0.0,label,URL,35.37,28.0,6097.0
+uci_sms_spam_collection.csv,5572,2,403,0,0.0,label,text,80.49,62.0,910.0

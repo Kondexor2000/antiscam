@@ -30,6 +30,8 @@ python -m pytest
 
 See [docs/demo.md](docs/demo.md) for test details and manual API checks.
 
+To explore CSV datasets in `data/`, install the optional analysis dependency with `python -m pip install -e ".[analysis]"` and run `python tools/analyze_datasets.py`. Reports are written to `reports/data-analysis/`.
+
 ## Docker and CI
 
 ```powershell

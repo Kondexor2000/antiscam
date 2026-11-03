@@ -1,0 +1,7 @@
+dataset,target,class,count,percentage
+uci_phishing_websites.csv,result,1,6157,55.69
+uci_phishing_websites.csv,result,-1,4898,44.31
+uci_phiusiil_phishing_url.csv,label,1,134850,57.19
+uci_phiusiil_phishing_url.csv,label,0,100945,42.81
+uci_sms_spam_collection.csv,label,ham,4825,86.59
+uci_sms_spam_collection.csv,label,spam,747,13.41

@@ -38,3 +38,14 @@ Wymagane jest połączenie z internetem. Duży zbiór PhiUSIIL pobieraj tylko wt
 - jawnie opisz ograniczenia: język i wiek SMS-ów, sposób zebrania próby oraz to, że cechy datasetu nie są równoważne bieżącej skuteczności produkcyjnego filtra.
 
 Zbiory witryn/URL-i zawierają gotowe cechy tabelaryczne. Nie są bezpośrednim materiałem uczącym obecnego tekstowego modelu TF-IDF; służą do analiz statystycznych lub do osobnego eksperymentu z modelem klasyfikacji URL-i.
+
+## Automatyczna analiza eksploracyjna
+
+Aby przeanalizować wszystkie pliki CSV znajdujące się bezpośrednio w `data/`, zainstaluj pandas i uruchom skrypt z katalogu projektu:
+
+```powershell
+python -m pip install -e ".[analysis]"
+python tools/analyze_datasets.py
+```
+
+Raporty CSV powstaną w `reports/data-analysis/`: podsumowanie zbiorów, profil kolumn, statystyki cech numerycznych i rozkłady rozpoznanych etykiet (`label`, `result`, `class` lub `target`). Dla kolumn `text`, `message`, `sms` i `url` skrypt podaje również długości treści. Katalogi można zmienić przez `--data-dir` i `--output-dir`. Analiza jest eksploracyjna — nie trenuje ani nie ocenia modelu.
