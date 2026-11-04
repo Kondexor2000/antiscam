@@ -175,6 +175,8 @@ class AiAssistanceReport:
     named_entities: list[str]
     scam_similarity: float
     what_ai_makes_easier: list[str]
+    agent_used: bool = False
+    agent_explanation: str | None = None
 
 
 @dataclass(frozen=True)
@@ -232,6 +234,18 @@ def explain_ai_assistance(text: str) -> AiAssistanceReport:
     message_vector = bag_of_words(text)
     similarity = cosine_similarity(message_vector, scam_pattern)
 
+    agent_explanation = None
+    agent_used = False
+    try:
+        from .agent import run_explanation_agent
+
+        agent_explanation = run_explanation_agent(text)
+        agent_used = agent_explanation is not None
+    except Exception:
+        # Keep the deterministic explanation available if the optional agent
+        # package, provider, or network is unavailable.
+        agent_explanation = None
+
     return AiAssistanceReport(
         purpose="AI explains the scan decision so the user knows why sending was allowed or blocked.",
         intent=bot_response.intent,
@@ -254,6 +268,8 @@ def explain_ai_assistance(text: str) -> AiAssistanceReport:
             "compares the message with known scam-like wording",
             "explains why the scan blocked sending instead of only returning a score",
         ],
+        agent_used=agent_used,
+        agent_explanation=agent_explanation,
     )
 
 

@@ -132,6 +132,33 @@ Invoke-WebRequest -Uri http://localhost:8000/ai/explain `
 
 Oczekiwany wynik: raport AI/NLP z `blocked_after_scan`, `block_explanation`, `scan_reasons` i zaleceniem bezpiecznej reakcji.
 
+## Demo 16: Opcjonalny agent LangGraph w `/ai/explain`
+
+Agent jest dodatkiem wymagającym klucza OpenAI. Nie zmienia wyniku endpointu `/scan`. W terminalu PowerShell zainstaluj opcjonalne zależności, ustaw konfigurację i uruchom API:
+
+```powershell
+python -m pip install -e ".[agent]"
+$env:OPENAI_API_KEY = "<twój-klucz>"
+$env:ANTISCAM_AI_AGENT_ENABLED = "1"
+# Opcjonalnie: $env:ANTISCAM_AI_AGENT_MODEL = "gpt-4o-mini"
+uvicorn antiscam.api:app --reload
+```
+
+Wyślij wiadomość z podejrzanym adresem:
+
+```powershell
+$report = Invoke-RestMethod -Uri http://localhost:8000/ai/explain `
+  -Method POST `
+  -ContentType "application/json" `
+  -Body (@{ text = "Zaloguj się na https://g00gle.com/login aby odebrać nagrodę" } | ConvertTo-Json)
+
+$report | Select-Object agent_used, agent_explanation, scan_status, risk_score
+```
+
+Oczekiwany wynik: `agent_used` ma wartość `True`, a `agent_explanation` zawiera wyjaśnienie po polsku. Agent powinien skorzystać z narzędzia skanera, a dla URL-i z narzędzia sprawdzającego lokalne reguły i listę CERT Polska. `scan_status` i `risk_score` pochodzą nadal z lokalnego `/scan`; agent ich nie ustala. Jeśli dodatek lub klucz API nie są dostępne albo wywołanie modelu się nie powiedzie, endpoint zwraca dotychczasowy raport deterministyczny z `agent_used = False`.
+
+Ten tryb wysyła treść wiadomości do skonfigurowanego dostawcy modelu. Włączaj go tylko wtedy, gdy sposób przetwarzania danych przez dostawcę jest akceptowalny dla tych wiadomości.
+
 ## Testy regresyjne API
 
 Poniższe testy ręczne sprawdzają, czy zaufany link nie obniża ryzyka typosquattingu ani potwierdzonego kodu BLIK oraz czy kod BLIK jest redagowany w odpowiedziach API.
