@@ -20,7 +20,7 @@ uvicorn antiscam.api:app --reload
 
 API domyślnie działa pod `http://localhost:8000`. Główny endpoint skanowania to `POST /scan`, a objaśniania analizy `POST /ai/explain`.
 
-Opcjonalny agent LangGraph działa wyłącznie w `/ai/explain`; `/scan` zawsze zwraca wynik deterministycznego silnika. Zainstaluj dodatek `python -m pip install -e ".[agent]"`, ustaw `OPENAI_API_KEY` oraz `ANTISCAM_AI_AGENT_ENABLED=1`, a następnie uruchom API. Model można zmienić przez `ANTISCAM_AI_AGENT_MODEL` (domyślnie `gpt-4o-mini`). Agent używa narzędzia lokalnego skanera i, jeśli wiadomość zawiera URL-e, sprawdza je lokalnymi regułami oraz listą ostrzeżeń CERT Polska. Brak dopasowania do listy nie oznacza, że domena jest bezpieczna. Gdy agent jest wyłączony, nie ma klucza albo wystąpi błąd dostawcy, raport pozostaje dostępny w trybie deterministycznym.
+Opcjonalny agent LangGraph działa wyłącznie w `/ai/explain`; `/scan` zawsze zwraca wynik deterministycznego silnika. Zainstaluj dodatek `python -m pip install -e ".[agent]"`, uruchom lokalną usługę Ollama, pobierz model `ollama pull qwen3.5:4b`, ustaw `ANTISCAM_AI_AGENT_ENABLED=1` i uruchom API. Domyślnym dostawcą jest lokalna Ollama; model i adres usługi można zmienić przez `OLLAMA_MODEL` i `OLLAMA_URL`. Alternatywnie ustaw `ANTISCAM_AI_AGENT_PROVIDER=openai`, `OPENAI_API_KEY` oraz opcjonalnie `ANTISCAM_AI_AGENT_MODEL` (domyślnie `gpt-4o-mini`). Agent używa narzędzia lokalnego skanera i, jeśli wiadomość zawiera URL-e, sprawdza je lokalnymi regułami oraz listą ostrzeżeń CERT Polska. Brak potwierdzonego dopasowania do listy nie oznacza, że domena jest bezpieczna. Jeśli agent jest wyłączony lub dostawca nie odpowiada, raport pozostaje dostępny w trybie deterministycznym.
 
 Przykładowe żądanie:
 

@@ -21,7 +21,7 @@ dependencies = [
 [project.optional-dependencies]
 datasets = ["ucimlrepo>=0.0.7"]
 analysis = ["pandas>=2.0"]
-agent = ["langgraph>=1.0,<2.0", "langchain-openai>=1.0,<2.0"]
+agent = ["langgraph>=1.0,<2.0", "langchain-ollama>=1.0,<2.0", "langchain-openai>=1.0,<2.0"]
 
 
 [project.scripts]

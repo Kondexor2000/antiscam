@@ -132,32 +132,76 @@ Invoke-WebRequest -Uri http://localhost:8000/ai/explain `
 
 Oczekiwany wynik: raport AI/NLP z `blocked_after_scan`, `block_explanation`, `scan_reasons` i zaleceniem bezpiecznej reakcji.
 
-## Demo 16: Opcjonalny agent LangGraph w `/ai/explain`
+## Demo 16: Opcjonalny agent LangGraph z Ollama w `/ai/explain`
 
-Agent jest dodatkiem wymagającym klucza OpenAI. Nie zmienia wyniku endpointu `/scan`. W terminalu PowerShell zainstaluj opcjonalne zależności, ustaw konfigurację i uruchom API:
+Agent korzysta domyślnie z lokalnej Ollama, więc nie wymaga klucza API. Zainstaluj Ollama i upewnij się, że jej usługa działa. Jeśli nie uruchamia się automatycznie, uruchom `ollama serve` w osobnym terminalu. Model musi obsługiwać tool calling; poniższy przykład używa `qwen3.5:4b`.
+
+Jeśli terminal jest otwarty w głównym katalogu repozytorium (tym zawierającym folder `outputs`), przejdź do katalogu projektu Python. Polecenia instalacji i uruchamiania API wykonuj właśnie stamtąd:
+
+```powershell
+Set-Location .\outputs\antiscam
+```
+
+W tym katalogu zainstaluj opcjonalne zależności i pobierz model:
 
 ```powershell
 python -m pip install -e ".[agent]"
-$env:OPENAI_API_KEY = "<twój-klucz>"
-$env:ANTISCAM_AI_AGENT_ENABLED = "1"
-# Opcjonalnie: $env:ANTISCAM_AI_AGENT_MODEL = "gpt-4o-mini"
-uvicorn antiscam.api:app --reload
+ollama pull qwen3.5:4b
+ollama list
 ```
 
-Wyślij wiadomość z podejrzanym adresem:
+Zatrzymaj wcześniej uruchomioną instancję API (`Ctrl+C`). W tym samym terminalu sprawdź, czy Python importuje pakiet z tego katalogu:
 
 ```powershell
+python -c "import antiscam.ai; print(antiscam.ai.__file__)"
+```
+
+Wynik powinien wskazywać `outputs\antiscam\antiscam\ai.py`. Następnie, w tym samym terminalu, ustaw konfigurację i uruchom API, aby proces odziedziczył te zmienne:
+
+```powershell
+$env:ANTISCAM_AI_AGENT_ENABLED = "1"
+$env:ANTISCAM_AI_AGENT_PROVIDER = "ollama"
+# Opcjonalnie: $env:OLLAMA_URL = "http://localhost:11434"
+# Opcjonalnie: $env:OLLAMA_MODEL = "qwen3.5:4b"
+python -m uvicorn antiscam.api:app --reload
+```
+
+Pozostaw API uruchomione. W drugim oknie PowerShell włącz wyjście UTF-8 i wyślij wiadomość z podejrzanym adresem. Po restarcie API wykonaj to żądanie ponownie — istniejąca zmienna `$report` nie odświeża się sama:
+
+```powershell
+$utf8 = New-Object System.Text.UTF8Encoding
+[Console]::OutputEncoding = $utf8
+
 $report = Invoke-RestMethod -Uri http://localhost:8000/ai/explain `
   -Method POST `
   -ContentType "application/json" `
   -Body (@{ text = "Zaloguj się na https://g00gle.com/login aby odebrać nagrodę" } | ConvertTo-Json)
 
-$report | Select-Object agent_used, agent_explanation, scan_status, risk_score
+$report | Select-Object agent_used, scan_status, risk_score
+$explanation = [regex]::Replace(
+  [string]$report.agent_explanation,
+  '\x1B\[[0-?]*[ -/]*[@-~]',
+  ''
+)
+$explanation
 ```
 
-Oczekiwany wynik: `agent_used` ma wartość `True`, a `agent_explanation` zawiera wyjaśnienie po polsku. Agent powinien skorzystać z narzędzia skanera, a dla URL-i z narzędzia sprawdzającego lokalne reguły i listę CERT Polska. `scan_status` i `risk_score` pochodzą nadal z lokalnego `/scan`; agent ich nie ustala. Jeśli dodatek lub klucz API nie są dostępne albo wywołanie modelu się nie powiedzie, endpoint zwraca dotychczasowy raport deterministyczny z `agent_used = False`.
+Jeśli API działa na innym porcie, na przykład `8001`, zmień port w adresie żądania. Nie wklejaj tekstu odpowiedzi agenta z powrotem do PowerShell jako polecenia. Sekwencje sterujące terminala widoczne jako `\x1b` lub `[?61;4c` nie są komendami PowerShell; powyższy przykład usuwa sekwencje ANSI z wyświetlanego wyjaśnienia.
 
-Ten tryb wysyła treść wiadomości do skonfigurowanego dostawcy modelu. Włączaj go tylko wtedy, gdy sposób przetwarzania danych przez dostawcę jest akceptowalny dla tych wiadomości.
+Sprawdź, czy odpowiedź zawiera pola agenta:
+
+```powershell
+if ($report.PSObject.Properties.Name -notcontains "agent_used") {
+  throw "Serwer zwrócił odpowiedź ze starszej wersji API. Zatrzymaj go, sprawdź ścieżkę importu antiscam.ai i uruchom ponownie API z katalogu outputs\antiscam."
+}
+if (-not $report.agent_used) {
+  throw "Pola agenta istnieją, ale agent się nie uruchomił. Sprawdź ustawienia, usługę Ollama i model."
+}
+```
+
+Oczekiwany wynik: `agent_used` ma wartość `True`, a `agent_explanation` zawiera wyjaśnienie po polsku. Agent powinien skorzystać z narzędzia skanera, a dla URL-i z narzędzia sprawdzającego lokalne reguły i listę CERT Polska. `scan_status` i `risk_score` pochodzą nadal z lokalnego `/scan`; agent ich nie ustala. Jeśli pola `agent_used` i `agent_explanation` w ogóle nie występują, serwer prawdopodobnie działa na starszej wersji kodu — nie jest to błąd Ollamy. Jeśli pola istnieją, ale `agent_used` ma wartość `False`, sprawdź, czy zmienne środowiskowe ustawiono przed uruchomieniem API, usługa Ollama działa, model jest widoczny w `ollama list`, a `OLLAMA_URL` i `OLLAMA_MODEL` wskazują właściwą usługę i model. Przy błędzie agenta endpoint nadal zwraca raport deterministyczny.
+
+Alternatywny dostawca OpenAI wymaga ustawienia `$env:ANTISCAM_AI_AGENT_PROVIDER = "openai"` oraz `OPENAI_API_KEY`; model można wskazać przez `ANTISCAM_AI_AGENT_MODEL`. Tryb OpenAI wysyła treść wiadomości do dostawcy. Przy Ollama treść wiadomości trafia do instancji skonfigurowanej pod `OLLAMA_URL` (domyślnie `http://localhost:11434`). Gdy wiadomość zawiera URL, agent dodatkowo sprawdza go na zewnętrznej liście ostrzeżeń CERT Polska.
 
 ## Testy regresyjne API
 
