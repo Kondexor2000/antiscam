@@ -236,3 +236,38 @@ class TestAiExplainEndpoint:
         assert data["scam_similarity"] > 0
         assert "suggested_action" in data
         assert "Bank Polska" in data["named_entities"]
+
+
+class TestReportsEndpoints:
+    def test_report_ask_returns_answer_and_sources(self, client, monkeypatch):
+        class FakeReportRAG:
+            def ask(self, question, top_k):
+                return {
+                    "question": question,
+                    "answer": "W zbiorze SMS spam stanowi 13,41%.",
+                    "sources": [{"source": "data-analysis/class_distribution.csv#row-3", "similarity": 0.9}],
+                }
+
+        monkeypatch.setattr("antiscam.api.report_rag", FakeReportRAG())
+
+        response = client.post(
+            "/reports/ask",
+            json={"question": "Jaki jest udział spamu w zbiorze SMS?"},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["sources"][0]["source"].endswith("class_distribution.csv#row-3")
+
+    def test_report_search_without_index_returns_conflict(self, client, monkeypatch):
+        from antiscam.reports_rag import ReportIndexNotFound
+
+        class EmptyReportRAG:
+            def search(self, question, top_k):
+                raise ReportIndexNotFound("No report index found.")
+
+        monkeypatch.setattr("antiscam.api.report_rag", EmptyReportRAG())
+
+        response = client.post("/reports/search", json={"question": "phishing"})
+
+        assert response.status_code == 409
+        assert response.json()["detail"] == "No report index found."

@@ -1,3 +1,5 @@
+import logging
+
 from antiscam.ai import (
     AntiScamDialogBot,
     KnowledgeGraph,
@@ -132,6 +134,22 @@ def test_explain_ai_assistance_says_safe_messages_are_not_blocked():
     assert report.scan_status == "LOW RISK"
     assert report.blocked_after_scan is False
     assert "not blocked" in report.block_explanation
+
+
+def test_explain_ai_assistance_logs_optional_agent_failure(monkeypatch, caplog):
+    from antiscam import agent
+
+    def fail_agent(text):
+        raise RuntimeError("Ollama is unavailable")
+
+    monkeypatch.setattr(agent, "run_explanation_agent", fail_agent)
+
+    with caplog.at_level(logging.ERROR, logger="antiscam.ai"):
+        report = explain_ai_assistance("Podejrzany link https://g00gle.com/login")
+
+    assert report.agent_used is False
+    assert report.agent_explanation is None
+    assert "Ollama is unavailable" in caplog.text
 
 
 def test_explain_sending_block_mentions_ai_py_and_scan_reasons():

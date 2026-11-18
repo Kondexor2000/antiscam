@@ -17,8 +17,10 @@ from dataclasses import dataclass
 from typing import Iterable
 
 from .engine import calculate_risk
+from .logger import get_logger
 
 
+logger = get_logger(__name__)
 TOKEN_PATTERN = re.compile(r"[a-zA-ZąćęłńóśźżĄĆĘŁŃÓŚŹŻ0-9]+")
 NAMED_ENTITY_PATTERN = re.compile(
     r"\b(?:[A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ]+)(?:\s+[A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ]+)*\b"
@@ -244,6 +246,7 @@ def explain_ai_assistance(text: str) -> AiAssistanceReport:
     except Exception:
         # Keep the deterministic explanation available if the optional agent
         # package, provider, or network is unavailable.
+        logger.exception("Optional explanation agent failed; using deterministic report.")
         agent_explanation = None
 
     return AiAssistanceReport(

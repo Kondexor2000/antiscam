@@ -132,6 +132,34 @@ Invoke-WebRequest -Uri http://localhost:8000/ai/explain `
 
 Oczekiwany wynik: raport AI/NLP z `blocked_after_scan`, `block_explanation`, `scan_reasons` i zaleceniem bezpiecznej reakcji.
 
+## Demo 15: Ollama RAG dla raportów
+
+Ten przepływ tworzy embeddingi lokalnie przez Ollama, indeksuje pliki CSV/Markdown/tekstowe z `reports/` w SQLite i udostępnia wyszukiwanie wektorowe oraz odpowiedzi RAG ze źródłami.
+
+Pobierz modele (w razie potrzeby uruchom wcześniej `ollama serve`) i uruchom API:
+
+```powershell
+ollama pull nomic-embed-text
+ollama pull qwen3.5:4b
+python -m uvicorn antiscam.api:app --reload
+```
+
+W drugim terminalu utwórz lub odśwież indeks, a następnie zapytaj raport:
+
+```powershell
+Invoke-RestMethod -Uri http://localhost:8000/reports/index -Method POST
+Invoke-RestMethod -Uri http://localhost:8000/reports/search `
+  -Method POST `
+  -ContentType "application/json" `
+  -Body '{"question":"spam w zbiorze SMS","top_k":3}'
+Invoke-RestMethod -Uri http://localhost:8000/reports/ask `
+  -Method POST `
+  -ContentType "application/json" `
+  -Body '{"question":"Jaki jest udział spamu w zbiorze SMS?"}'
+```
+
+Wyniki wyszukiwania zawierają fragmenty i wynik podobieństwa; odpowiedź RAG zawiera listę cytowanych źródeł. Po zmianie raportów ponownie wywołaj `/reports/index`. Ustaw `OLLAMA_EMBEDDING_MODEL`, `OLLAMA_MODEL` lub `OLLAMA_URL`, jeśli używasz innych nazw modeli albo adresu usługi. Jeśli Ollama jest niedostępna, endpoint zwraca `503`; wyszukiwanie przed zbudowaniem indeksu zwraca `409`.
+
 ## Demo 16: Opcjonalny agent LangGraph z Ollama w `/ai/explain`
 
 Agent korzysta domyślnie z lokalnej Ollama, więc nie wymaga klucza API. Zainstaluj Ollama i upewnij się, że jej usługa działa. Jeśli nie uruchamia się automatycznie, uruchom `ollama serve` w osobnym terminalu. Model musi obsługiwać tool calling; poniższy przykład używa `qwen3.5:4b`.
@@ -201,6 +229,10 @@ if (-not $report.agent_used) {
 
 Oczekiwany wynik: `agent_used` ma wartość `True`, a `agent_explanation` zawiera wyjaśnienie po polsku. Agent powinien skorzystać z narzędzia skanera, a dla URL-i z narzędzia sprawdzającego lokalne reguły i listę CERT Polska. `scan_status` i `risk_score` pochodzą nadal z lokalnego `/scan`; agent ich nie ustala. Jeśli pola `agent_used` i `agent_explanation` w ogóle nie występują, serwer prawdopodobnie działa na starszej wersji kodu — nie jest to błąd Ollamy. Jeśli pola istnieją, ale `agent_used` ma wartość `False`, sprawdź, czy zmienne środowiskowe ustawiono przed uruchomieniem API, usługa Ollama działa, model jest widoczny w `ollama list`, a `OLLAMA_URL` i `OLLAMA_MODEL` wskazują właściwą usługę i model. Przy błędzie agenta endpoint nadal zwraca raport deterministyczny.
 
+Jeśli agent nie wystartuje mimo tych ustawień, sprawdź terminal, w którym działa API. Błąd opcjonalnego agenta jest logowany tam z wyjątkiem i tracebackiem jako `Optional explanation agent failed; using deterministic report.` Upewnij się też, że `langgraph` i `langchain-ollama` importują się z tego samego aktywnego środowiska, w którym uruchomiono Uvicorn.
+
+Jeśli traceback zawiera `StructuredTool does not support sync invocation`, zatrzymaj API i uruchom je ponownie z aktualnym `antiscam/agent.py`. Narzędzie sprawdzania domen musi być synchroniczne, ponieważ ten agent uruchamia graf przez `graph.invoke()`.
+
 Alternatywny dostawca OpenAI wymaga ustawienia `$env:ANTISCAM_AI_AGENT_PROVIDER = "openai"` oraz `OPENAI_API_KEY`; model można wskazać przez `ANTISCAM_AI_AGENT_MODEL`. Tryb OpenAI wysyła treść wiadomości do dostawcy. Przy Ollama treść wiadomości trafia do instancji skonfigurowanej pod `OLLAMA_URL` (domyślnie `http://localhost:11434`). Gdy wiadomość zawiera URL, agent dodatkowo sprawdza go na zewnętrznej liście ostrzeżeń CERT Polska.
 
 ## Testy regresyjne API
@@ -259,7 +291,142 @@ if (-not $report.blocked_after_scan) {
 "OK: raport AI blokuje ryzykowną wiadomość i nie ujawnia kodu."
 ```
 
-## Demo 15: Odtworzenie i sprawdzenie raportów zbiorów danych
+## Dema 17–21: Wyjaśnienia Ollama dla wiadomości phishingowych
+
+Te przykłady używają agenta Ollama w `POST /ai/explain`. Skonfiguruj go zgodnie z Demo 16 i pozostaw API uruchomione. Wynik skanowania nadal pochodzi z lokalnego, deterministycznego silnika; pole `agent_explanation` jest odpowiedzią Ollama. Funkcja poniżej przerywa przykład, jeśli agent nie został uruchomiony.
+
+```powershell
+function Show-OllamaExplanation([string]$Text, [string]$ApiUrl = "http://localhost:8000") {
+  $utf8 = New-Object System.Text.UTF8Encoding
+  [Console]::OutputEncoding = $utf8
+  $body = @{ text = $Text } | ConvertTo-Json -Compress
+  $bodyBytes = [System.Text.Encoding]::UTF8.GetBytes($body)
+
+  $report = Invoke-RestMethod -Uri "$ApiUrl/ai/explain" `
+    -Method POST `
+    -ContentType "application/json; charset=utf-8" `
+    -Body $bodyBytes `
+    -ErrorAction Stop
+
+  if (-not $report.agent_used -or -not $report.agent_explanation) {
+    Write-Host "agent_used: $($report.agent_used)"
+    Write-Host "Sprawdź terminal API; powinien zawierać szczegółowy błąd agenta."
+    throw "Agent Ollama nie zwrócił odpowiedzi. Zweryfikuj konfigurację z Demo 16 i uruchom ponownie API."
+  }
+
+  $report | Select-Object scan_status, risk_score, agent_used
+  $report.agent_explanation
+}
+```
+
+Jeśli API działa na porcie `8001`, przekaż jego adres jako drugi argument, np. `Show-OllamaExplanation "Podejrzana wiadomość" "http://localhost:8001"`.
+
+### Demo 17: Phishing podszywający się pod bank
+
+```powershell
+Show-OllamaExplanation "Twoje konto bankowe zostanie zablokowane. Potwierdź dane na https://g00gle.com/login"
+```
+
+Odpowiedź Ollama powinna wyjaśnić wynik lokalnego skanowania i wskazać bezpieczną reakcję. Nie loguj się przez podejrzany link.
+
+### Demo 18: Pilna prośba o kod BLIK
+
+```powershell
+Show-OllamaExplanation "Pilnie wyślij kod BLIK 123456, inaczej konto zostanie zablokowane."
+```
+
+Ollama powinna ostrzec przed przekazywaniem kodu. Kod sześciocyfrowy jest redagowany w wyjaśnieniu agenta.
+
+### Demo 19: Phishing, BLIK i podejrzany link
+
+```powershell
+Show-OllamaExplanation "Bank: natychmiast potwierdź konto i wyślij BLIK 654321 na https://paypaI.example/verify"
+```
+
+Odpowiedź powinna odnieść się do pilności, prośby o BLIK i podejrzanego adresu; nie używaj linku ani nie udostępniaj kodu.
+
+### Demo 20: Podejrzana domena obok zaufanego linku
+
+```powershell
+Show-OllamaExplanation "Sprawdź wiadomość o blokadzie konta: https://g00gle.com/login. Znam też https://google.com."
+```
+
+Agent powinien rozróżnić domeny i wyjaśnić, że obecność zaufanego adresu nie potwierdza bezpieczeństwa drugiego. Wynik CERT Polska zależy od dostępności zewnętrznej listy.
+
+### Demo 21: Phishing z pilnym linkiem do „odbioru zwrotu”
+
+```powershell
+Show-OllamaExplanation "Ostatnia szansa na zwrot pieniędzy! Zaloguj się natychmiast przez https://secure-bank-login.example"
+```
+
+Ollama wyświetli wyjaśnienie i zalecenie, by nie logować się z wiadomości, lecz skontaktować się z instytucją przez niezależnie znaleziony kanał.
+
+## Dema 22–26: Odpowiedzi Ollama oparte na `reports/`
+
+Najpierw wykonaj indeksowanie z Demo 15 i upewnij się, że Ollama działa. Poniższa funkcja wyświetla odpowiedź wygenerowaną przez model oraz źródła pobrane z `reports/`. Tekst odpowiedzi może się różnić między uruchomieniami; zawsze sprawdź cytowane źródła.
+
+```powershell
+function Ask-OllamaReports([string]$Question, [string]$ApiUrl = "http://localhost:8000") {
+  $utf8 = New-Object System.Text.UTF8Encoding
+  [Console]::OutputEncoding = $utf8
+  $body = @{ question = $Question; top_k = 4 } | ConvertTo-Json -Compress
+  $bodyBytes = [System.Text.Encoding]::UTF8.GetBytes($body)
+
+  $result = Invoke-RestMethod -Uri "$ApiUrl/reports/ask" `
+    -Method POST `
+    -ContentType "application/json; charset=utf-8" `
+    -Body $bodyBytes `
+    -ErrorAction Stop
+
+  "Pytanie: $($result.question)"
+  "Odpowiedź Ollama:"
+  $result.answer
+  "Źródła:"
+  $result.sources | Format-Table source, similarity -AutoSize
+}
+```
+
+### Demo 22: Udział klasy phishing w zbiorze PhiUSIIL
+
+```powershell
+Ask-OllamaReports "Na podstawie reports/data-analysis/class_distribution.csv, jaka jest liczba i jaki procent rekordów klasy 1 w uci_phiusiil_phishing_url.csv? Podaj źródło."
+```
+
+Ollama powinna oprzeć odpowiedź na wierszu dotyczącym `uci_phiusiil_phishing_url.csv` i podać cytowane źródło raportu.
+
+### Demo 23: Klasy w zbiorze phishingowych stron
+
+```powershell
+Ask-OllamaReports "Co reports/data-analysis/class_distribution.csv podaje o liczebności i udziałach klas 1 oraz -1 w uci_phishing_websites.csv? Nie klasyfikuj konkretnych domen."
+```
+
+Odpowiedź powinna dotyczyć wyłącznie agregatów klas z raportu, a nie skuteczności detekcji pojedynczych linków.
+
+### Demo 24: Spam SMS a phishing
+
+```powershell
+Ask-OllamaReports "Jaka liczba i jaki procent rekordów klasy spam są w uci_sms_spam_collection.csv według reports/data-analysis/class_distribution.csv? Wyjaśnij, czy ten raport dowodzi, że konkretny SMS jest phishingiem."
+```
+
+Raport podaje statystykę zbioru SMS, ale sama etykieta spam nie potwierdza, że dowolna konkretna wiadomość, w tym prośba o pilny BLIK, jest oszustwem.
+
+### Demo 25: Czy raporty potwierdzają pilne oszustwo BLIK?
+
+```powershell
+Ask-OllamaReports "Czy pliki w reports/ zawierają przykład pilnego SMS-a z kodem BLIK albo statystykę oszustw BLIK? Odpowiedz wyłącznie na podstawie odnalezionych raportów i podaj źródła."
+```
+
+Ollama powinna zaznaczyć, jeśli raporty nie zawierają takich przykładów ani statystyk. Nie należy traktować ogólnych statystyk spamu jako dowodu dotyczącego BLIK.
+
+### Demo 26: Czy raporty rozstrzygają, czy link jest podejrzany?
+
+```powershell
+Ask-OllamaReports "Czy reports/ zawiera konkretne adresy URL, dzięki którym można potwierdzić, że https://g00gle.com/login jest phishingiem? Opisz, co raporty mówią o zbiorze phishingowych URL-i i czego nie pozwalają stwierdzić o tym konkretnym linku."
+```
+
+Raporty agregujące zbiór phishingowych URL-i nie zastępują skanowania bieżącego adresu. Weryfikuj konkretny link przez `/scan` lub `/ai/explain`; nie otwieraj go, aby go sprawdzić.
+
+## Demo 27: Odtworzenie i sprawdzenie raportów zbiorów danych
 
 Ta część sprawdza statystyki opisowe CSV używanych w desk research. Nie ocenia skuteczności klasyfikatora.
 

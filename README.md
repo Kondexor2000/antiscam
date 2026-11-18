@@ -20,6 +20,29 @@ uvicorn antiscam.api:app --reload
 
 API domyślnie działa pod `http://localhost:8000`. Główny endpoint skanowania to `POST /scan`, a objaśniania analizy `POST /ai/explain`.
 
+### RAG dla raportów z Ollama
+
+Endpointy `/reports/index`, `/reports/search` i `/reports/ask` tworzą lokalny przepływ RAG nad plikami `.csv`, `.md` i `.txt` z `reports/`. Indeks używa embeddingów Ollama (`nomic-embed-text`), wyszukiwania kosinusowego i lokalnej bazy SQLite w `data/reports-vector-index.sqlite`. `/reports/ask` przekazuje znalezione fragmenty do lokalnego modelu czatu i zwraca źródła odpowiedzi. Nie wymaga dodatku `.[agent]`.
+
+Uruchom Ollama i pobierz oba modele:
+
+```powershell
+ollama pull nomic-embed-text
+ollama pull qwen3.5:4b
+```
+
+Po uruchomieniu API zindeksuj raporty, a następnie wyszukuj lub zadawaj pytania:
+
+```powershell
+Invoke-RestMethod -Uri http://localhost:8000/reports/index -Method POST
+Invoke-RestMethod -Uri http://localhost:8000/reports/ask `
+  -Method POST `
+  -ContentType "application/json" `
+  -Body '{"question":"Jaki jest udział spamu w zbiorze SMS?"}'
+```
+
+`POST /reports/search` przyjmuje ten sam JSON i zwraca pasujące fragmenty wraz z podobieństwem. `top_k` jest opcjonalny (1–10, domyślnie 4). Po zmianie raportów ponownie wywołaj `/reports/index`. Ustawienia `OLLAMA_URL`, `OLLAMA_MODEL` i `OLLAMA_EMBEDDING_MODEL` pozwalają zmienić adres usługi oraz modele. Błędy lub niedostępność Ollama są zwracane jako `503`; wyszukiwanie bez indeksu albo z niezgodnym modelem zwraca `409`.
+
 Opcjonalny agent LangGraph działa wyłącznie w `/ai/explain`; `/scan` zawsze zwraca wynik deterministycznego silnika. Zainstaluj dodatek `python -m pip install -e ".[agent]"`, uruchom lokalną usługę Ollama, pobierz model `ollama pull qwen3.5:4b`, ustaw `ANTISCAM_AI_AGENT_ENABLED=1` i uruchom API. Domyślnym dostawcą jest lokalna Ollama; model i adres usługi można zmienić przez `OLLAMA_MODEL` i `OLLAMA_URL`. Alternatywnie ustaw `ANTISCAM_AI_AGENT_PROVIDER=openai`, `OPENAI_API_KEY` oraz opcjonalnie `ANTISCAM_AI_AGENT_MODEL` (domyślnie `gpt-4o-mini`). Agent używa narzędzia lokalnego skanera i, jeśli wiadomość zawiera URL-e, sprawdza je lokalnymi regułami oraz listą ostrzeżeń CERT Polska. Brak potwierdzonego dopasowania do listy nie oznacza, że domena jest bezpieczna. Jeśli agent jest wyłączony lub dostawca nie odpowiada, raport pozostaje dostępny w trybie deterministycznym.
 
 Przykładowe żądanie:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import re
@@ -51,13 +52,13 @@ def run_explanation_agent(text: str) -> str | None:
         return json.dumps(safe_result, ensure_ascii=False)
 
     @tool
-    async def check_domain_reputation(url: str) -> str:
+    def check_domain_reputation(url: str) -> str:
         """Check a URL from the submitted message against local rules and CERT Polska's warning list."""
         if url not in original_links:
             return json.dumps({"error": "URL is not present in the submitted message."})
 
         local = analyze_links_detailed(url)
-        flagged = await check_external_warning_lists([url])
+        flagged = asyncio.run(check_external_warning_lists([url]))
         return json.dumps(
             {
                 "url": url,

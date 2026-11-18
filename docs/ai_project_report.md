@@ -20,6 +20,8 @@ The AI extension turns AntiScam from a pure security demo into an AI/NLP teachin
 - a small knowledge graph,
 - cloud deployment model descriptions.
 
+`antiscam/reports_rag.py` adds a local report-question answering flow: it chunks CSV, Markdown, and text reports, embeds them with Ollama, persists vectors in SQLite, and retrieves relevant chunks with cosine similarity. The API exposes report indexing, vector search, and RAG answers with source citations. Ollama chat output is grounded in retrieved report text and does not replace the deterministic scam verdict.
+
 ## Relationship to AntiScam
 
 The AI layer supports the existing security use case:
@@ -30,6 +32,7 @@ The AI layer supports the existing security use case:
 - emotion detection supports empathetic responses,
 - the knowledge graph stores mitigation facts,
 - cloud profiles support deployment discussion.
+- report retrieval makes the generated dataset-analysis reports searchable and answerable in natural language.
 
 The clearest user-facing feature is `POST /ai/explain`. It answers the practical question "what does AI make easier here?" by returning one report with intent, emotion, extracted terms, named entities, scam-pattern similarity and a suggested action. This turns a raw suspicious message into guidance that is easier to understand than a numeric risk score alone.
 
