@@ -110,6 +110,20 @@ Kontrola wyników publicznych powinna obejmować co najmniej:
 - Ponieważ etykieta phishing/legitimate jest binarna, właściwym modelem regresyjnym jest regresja logistyczna, a nie regresja liniowa dla ciągłego wyniku. Raportować współczynniki/ilorazy szans z niepewnością oraz ograniczenia modelu. Nie przedstawiać tego jako jakości produkcyjnego skanera bez niezależnego testu.
 - Dla małej liczby rocznych obserwacji ograniczyć się do wykresu i statystyk opisowych zamiast testów trendu o niskiej mocy.
 
+## Wykonanie demo 10–14: API skanera i objaśnienie AI
+
+Dema uruchomiono lokalnie 26 listopada 2026 r. na API z włączonym agentem Ollama. Dema 10–13 wywołują `/scan`, więc ich wynik pochodzi z deterministycznego silnika, nie z agenta. Demo 14 wywołuje `/ai/explain` i zwraca zarówno wynik skanera, jak i objaśnienie agenta.
+
+| Demo | Wynik końcowy | Wynik bazowy ML | Sprawdzone zachowanie |
+| --- | --- | --- | --- |
+| 10 | `HIGH RISK`, 100/100 | `scam`, 72 (`p=0.72`) | Powód ML i potwierdzony BLIK znalazły się w `reasons`; kod został zredagowany. |
+| 11 | `HIGH RISK`, 100/100 | `scam`, 86 (`p=0.86`) | Link `g00gle.com` był ryzykowny, wykryto typosquatting, a kod BLIK nie wyciekł do odpowiedzi. |
+| 12 | `HIGH RISK`, 100/100 | `scam`, 74 (`p=0.74`) | Rozstrzelone `B L I K` i `k-o-d` wystarczyły, by wykryć kontekst BLIK; kod został zredagowany. |
+| 13 | `HIGH RISK`, 100/100 | `safe`, 48 (`p=0.48`) | Mimo bezpiecznej etykiety bazowego ML oba linki trafiły do `risky_links`, a `g00gle.com` do typosquattingu. To przykład działania reguł ponad wynikiem bazowym, nie dowód jakości na rzeczywistych incydentach. |
+| 14 | `HIGH RISK`, 100/100 | `scam`, 72 (`p=0.72`) | Obecne były wymagane pola raportu, `blocked_after_scan=true`, odpowiedź agenta i redakcja kodu. |
+
+Wyniki 10–13 spełniły sprawdzane warunki API, a w żadnej odpowiedzi testowej nie ujawniono sześciocyfrowego kodu. Przy starcie pojawiło się też ostrzeżenie o niezgodności wersji scikit-learn zapisanej w modelu i używanej w środowisku; bazowe predykcje ML mogą być przez to niewiarygodne. Nie oznacza to, że agent nie może podawać nieprawdziwych informacji. W demo 14 objaśnienie stwierdziło, że „system blokuje taką próbę”, choć `/ai/explain` jedynie zwraca raport i flagę `blocked_after_scan`; endpoint nie wykonuje transakcji ani nie blokuje wysyłania wiadomości. Zalecenie zablokowania nadawcy również jest poradą tekstową, a nie wykonaną czynnością. To konkretna, myląca nadinterpretacja agenta. Wartości `p=...` pochodzą z modelu i nie są skalibrowanym prawdopodobieństwem oszustwa.
+
 ## Wykonanie demo 17–21: skaner i objaśnienia AI
 
 Dema uruchomiono lokalnie 26 listopada 2026 r. przez `POST /ai/explain` z włączonym agentem Ollama. Wszystkie pięć skonstruowanych wiadomości otrzymało `HIGH RISK` i wynik 100/100; agent zwrócił objaśnienie, a kody BLIK z demo 18 i 19 nie pojawiły się w odpowiedziach. To potwierdza wyłącznie działanie wybranych ścieżek lokalnego skanera i redakcji kodów — nie jest testem danych publicznych ani badaniem częstości oszustw.
@@ -123,6 +137,14 @@ Dema uruchomiono lokalnie 26 listopada 2026 r. przez `POST /ai/explain` z włąc
 | 21 | Pilny link do rzekomego zwrotu | `HIGH RISK`, 100/100 | Agent ostrzegł przed logowaniem z wiadomości; podany link i tekst są przykładowe, a nie zaczerpnięte z incydentu w zbiorze. |
 
 W objaśnieniach pojawiły się też twierdzenia, których nie należy uznawać za ustalone fakty: m.in. niekalibrowana „83% pewność” w demie 18 oraz interpretacja braku dopasowania CERT jako „braku fałszywego alarmu” w demie 17. Wynik skanera pozostaje deterministycznym wynikiem reguł i lokalnego modelu; opis agenta wymaga weryfikacji z `reasons` i wynikami narzędzi. `HIGH RISK` dla skonstruowanego przykładu nie oznacza, że model wykrył odpowiadający mu rekord w publicznym źródle.
+
+### Wspólny wniosek badawczy z demo 10–14 i 17–21
+
+Wyniki są dowodem, że prototyp w tych konkretnych próbach rozpoznał skonstruowane podejrzane wiadomości jako `HIGH RISK`, wskazał część sygnałów i redagował kody BLIK. Pokazują potencjał użycia skanera jako warstwy ostrzegawczej. Nie dowodzą jednak, że projekt uniemożliwia hakerom przejęcie cudzych kont ani wysyłanie z nich wiadomości: testy nie obejmowały włamań, kontroli dostępu do kont ani egzekwowania blokady w rzeczywistym przepływie wysyłania. `/scan` i `/ai/explain` zwracają oceny i objaśnienia, a komunikat agenta o blokowaniu nie jest dowodem, że wysyłka została faktycznie zatrzymana. Do potwierdzenia takiego efektu potrzebna byłaby integracja skanera z bramką wysyłki oraz niezależny test bezpieczeństwa i pomiar skuteczności blokowania na realistycznych przypadkach.
+
+Gałąź [`only-python`](https://github.com/Kondexor2000/antiscam/tree/only-python) jest wskazana jako wariant badawczo-wdrożeniowy. Gałąź [`main`](https://github.com/Kondexor2000/antiscam/tree/main) udostępnia implementację projektu, ale sama w sobie nie jest dowodem, że osobom włamującym się na cudze konta nie udaje się wysyłać podejrzanych wiadomości. Takie twierdzenie wymagałoby niezależnych testów kontroli dostępu i blokowania wysyłki w działającym systemie.
+
+Dalszy rozwój i wdrożenie projektu wymagają konsultacji z analitykiem ds. cyberbezpieczeństwa, w szczególności w zakresie modelu zagrożeń, kontroli dostępu, integracji skanera z przepływem wysyłki oraz niezależnej walidacji skuteczności.
 
 ### Kontrola wzmianek o BLIK w lokalnych zbiorach publicznych
 
