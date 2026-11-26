@@ -146,6 +146,8 @@ Gałąź [`only-python`](https://github.com/Kondexor2000/antiscam/tree/only-pyth
 
 Dalszy rozwój i wdrożenie projektu wymagają konsultacji z analitykiem ds. cyberbezpieczeństwa, w szczególności w zakresie modelu zagrożeń, kontroli dostępu, integracji skanera z przepływem wysyłki oraz niezależnej walidacji skuteczności.
 
+Skuteczna konsultacja i dalszy rozwój mogą pomóc bezpiecznie aktualizować wykorzystywane dane publiczne, takie jak listy ostrzeżeń i zbiory referencyjne, co może poprawić wykrywanie nowych podejrzanych treści. Sama aktualizacja danych nie uniemożliwia jednak przejęcia kont ani wysyłania z nich wiadomości. Ograniczenie takiego działania wymagałoby także egzekwowanych kontroli dostępu i integracji skanera z rzeczywistą ścieżką wysyłania; ich skuteczność należałoby potwierdzić niezależnymi testami.
+
 ### Kontrola wzmianek o BLIK w lokalnych zbiorach publicznych
 
 Przeszukano wszystkie rekordy w trzech plikach UCI w `data/`, stosując dopasowanie całego słowa `BLIK` bez rozróżniania wielkości liter. Wynik: **0 dopasowań w 11 055** rekordach `uci_phishing_websites.csv`, **0 w 235 795** rekordach `uci_phiusiil_phishing_url.csv` i **0 w 5 572** wiadomościach `uci_sms_spam_collection.csv`.
