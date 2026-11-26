@@ -110,6 +110,28 @@ Kontrola wyników publicznych powinna obejmować co najmniej:
 - Ponieważ etykieta phishing/legitimate jest binarna, właściwym modelem regresyjnym jest regresja logistyczna, a nie regresja liniowa dla ciągłego wyniku. Raportować współczynniki/ilorazy szans z niepewnością oraz ograniczenia modelu. Nie przedstawiać tego jako jakości produkcyjnego skanera bez niezależnego testu.
 - Dla małej liczby rocznych obserwacji ograniczyć się do wykresu i statystyk opisowych zamiast testów trendu o niskiej mocy.
 
+## Wykonanie demo 17–21: skaner i objaśnienia AI
+
+Dema uruchomiono lokalnie 26 listopada 2026 r. przez `POST /ai/explain` z włączonym agentem Ollama. Wszystkie pięć skonstruowanych wiadomości otrzymało `HIGH RISK` i wynik 100/100; agent zwrócił objaśnienie, a kody BLIK z demo 18 i 19 nie pojawiły się w odpowiedziach. To potwierdza wyłącznie działanie wybranych ścieżek lokalnego skanera i redakcji kodów — nie jest testem danych publicznych ani badaniem częstości oszustw.
+
+| Demo | Temat przykładu | Wynik skanera | Obserwacja z wykonania |
+| --- | --- | --- | --- |
+| 17 | Podszycie pod bank i `g00gle.com` | `HIGH RISK`, 100/100 | Agent wskazał typosquatting; brak potwierdzenia na liście CERT nie jest dowodem bezpieczeństwa. |
+| 18 | Pilna prośba o kod BLIK | `HIGH RISK`, 100/100 | Agent ostrzegł przed przekazaniem kodu; sześciocyfrowy kod został zredagowany. |
+| 19 | BLIK, pilność i `paypaI.example` | `HIGH RISK`, 100/100 | Agent ostrzegł przed linkiem i kodem; jego przypisanie typosquattingu nie powinno być traktowane jako potwierdzone bez sprawdzenia wyniku narzędzia. |
+| 20 | Podejrzana domena obok `google.com` | `HIGH RISK`, 100/100 | Agent odróżnił domeny, ale nazwanie `google.com` „bezpiecznym” wykracza poza lokalną regułę zaufanej domeny i nie potwierdza bieżącej reputacji ani bezpieczeństwa strony. |
+| 21 | Pilny link do rzekomego zwrotu | `HIGH RISK`, 100/100 | Agent ostrzegł przed logowaniem z wiadomości; podany link i tekst są przykładowe, a nie zaczerpnięte z incydentu w zbiorze. |
+
+W objaśnieniach pojawiły się też twierdzenia, których nie należy uznawać za ustalone fakty: m.in. niekalibrowana „83% pewność” w demie 18 oraz interpretacja braku dopasowania CERT jako „braku fałszywego alarmu” w demie 17. Wynik skanera pozostaje deterministycznym wynikiem reguł i lokalnego modelu; opis agenta wymaga weryfikacji z `reasons` i wynikami narzędzi. `HIGH RISK` dla skonstruowanego przykładu nie oznacza, że model wykrył odpowiadający mu rekord w publicznym źródle.
+
+### Kontrola wzmianek o BLIK w lokalnych zbiorach publicznych
+
+Przeszukano wszystkie rekordy w trzech plikach UCI w `data/`, stosując dopasowanie całego słowa `BLIK` bez rozróżniania wielkości liter. Wynik: **0 dopasowań w 11 055** rekordach `uci_phishing_websites.csv`, **0 w 235 795** rekordach `uci_phiusiil_phishing_url.csv` i **0 w 5 572** wiadomościach `uci_sms_spam_collection.csv`.
+
+Samo wyszukiwanie podciągu `blik` dało 14 trafień w PhiUSIIL, ale były to kolizje tekstowe, m.in. nazwy zawierające `republik...`, `publik...` i `weblike`; nie stanowią one wzmianek o systemie BLIK. Wśród tych 14 trafień 12 miało etykietę `1` (legalny URL), a 2 etykietę `0` (phishing). To pokazuje, dlaczego proste wyszukiwanie fragmentu słowa może prowadzić do fałszywych wniosków.
+
+Wniosek jest ograniczony do tych trzech lokalnych zbiorów: nie zawierają one jawnych wzmianek o BLIK jako systemie płatności ani osobnej etykiety ryzyka BLIK. Nie dowodzi to, że ryzyko nie istnieje w danych publicznych ogółem — w raporcie wskazano już [ostrzeżenie Policji z 2020 r. o wyłudzeniach kodów BLIK](https://policja.pl/pol/aktualnosci/189192,Uwaga-na-oszustow-wyludzajacych-kody-BLIK.html). Ten przykład dokumentuje istnienie opisywanych przypadków, ale nie mierzy ich częstości.
+
 ## Raport z wyników demo RAG 22–26
 
 Przytoczone odpowiedzi zawierają oznaki błędnego wyświetlania polskich znaków, np. `fragmentÃ³w` i `Å¹rÃ³dÅo`. To wygląda na niezgodne dekodowanie UTF-8, ale sam wklejony tekst nie rozstrzyga, czy błąd powstał w odpowiedzi API, odczycie w PowerShell czy kopiowaniu. Przed oceną jakości językowej modelu należy porównać surową odpowiedź HTTP z tekstem wyświetlonym w terminalu.
