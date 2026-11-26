@@ -60,6 +60,30 @@ Przykładowe źródła pierwotne:
 
 Statystyki transakcji BLIK mogą dać kontekst skali użycia systemu, ale nie są miarą oszustw. Do oceny oszustw trzeba używać wskaźników strat, reklamacji lub przestępstw, jeśli publikacja podaje je w sposób porównywalny.
 
+## Zbadane ryzyko danych publicznych
+
+Wygenerowane raporty CSV pozwalają ocenić ryzyko jakości i interpretacji danych przed przeprowadzeniem testów. Nie stwierdzają one skuteczności produkcyjnego skanera ani częstości oszustw w populacji.
+
+| Zbadane ryzyko | Wartość w danych | Konsekwencja i kontrola |
+| --- | --- | --- |
+| Duplikaty wpływające na rozkład i testy | `uci_phishing_websites.csv`: 5 206 z 11 055 wierszy to duplikaty (47,09%); `uci_sms_spam_collection.csv`: 403 z 5 572 wierszy (7,23%); w PhiUSIIL nie ma identycznych pełnych wierszy. | Nie usuwać duplikatów automatycznie przed analizą. Oceniać, czy są to rzeczywiste powtórzenia rekordów, a podczas testów sprawdzić wyniki z duplikatami i po ich jawnej decyzji o usunięciu. |
+| Powtarzane wartości URL mimo braku pełnych duplikatów | W PhiUSIIL jest 235 370 unikalnych wartości `URL` przy 235 795 rekordach, więc co najmniej część identycznych URL-i występuje więcej niż raz. | Przed trainingiem i testem sprawdzić, czy powtórzone URL-e nie przeciekają między zestawami; osobno policzyć duplikaty po pełnym wierszu i po URL-u. |
+| Braki danych | Wszystkie trzy zbiory mają 0 brakujących komórek i 0,0% pustych wartości w wygenerowanej tabeli profilu. | Nie zastępowano danych tylko na podstawie tych statystyk. Braki mogą nadal dotyczyć semantycznie niejawnych informacji, np. niedostępności strony lub historycznego wieku domeny. |
+| Nierównomierne klasy | Spam stanowi 747 z 5 572 SMS-ów (13,41%), klasy 1 i -1 w zbiorze stron wynoszą odpowiednio 55,69% i 44,31%, a w PhiUSIIL `label=1` to 57,19%, a `label=0` 42,81%. | Przy modelowaniu podać macierz pomyłek i metryki dla każdej klasy; nie oceniać wyłącznie accuracy. Należy rozważyć próbkowanie i raportowanie precision, recall, F1 oraz przedziałów ufności. |
+| Zamieszanie znaczenia kodów | W zbiorze stron `result=1/-1`, a w PhiUSIIL `label=1/0`; tylko PhiUSIIL potwierdza zgodnie z dokumentacją UCI, że `1` oznacza legalny URL, a `0` phishing. | Zachować oryginalne kody i osobną tabelę znaczeń; nie używać słów „phishing/legitimate” przed sprawdzeniem dokumentacji konkretnego zbioru. |
+| Niepewna reprezentatywność | SMS-y są angielskie, zbiory URL-i mają cechy statyczne i nie opisują polskiego kontekstu BLIK, a zbiory pochodzą z różnych okresów i metod tworzenia. | Wyniki ograniczyć do etykiety i jednostki konkretnego zbioru. Nie przenosić proporcji spamu ani phishingu na wszystkie wiadomości, strony lub pola BLIK w Polsce. |
+| Wartości odstające i rozkłady skośne | W PhiUSIIL mediana długości URL wynosi 27, średnia 34,57, maksimum 6 097; inne cechy mają również duże maksimumy, np. `LargestLineLength` 13 975 732 i `LineOfCode` 442 666. | Nie opisywać średnich jako typowego URL-a bez mediany i kwartylów. Histogramy i testy odporne mają poprzedzać wybór testu parametrycznego; przed analizą wykreślić obserwacje odstające i sprawdzić ich realność. |
+| Kody zmiennych jako wartości ilościowe | W zbiorze stron cechy są kodowane głównie jako `-1/0/1`, `-1/1` lub `0/1`; średnie i odchylenia opisują kody, a nie naturalną długość ani częstotliwość zjawiska. | Nie obliczać współczynnika zmienności ani interpretować średnich jako fizycznych wielkości dla zmiennych nominalnych/porządkowych. |
+| Brak danych czasowych | CSV zawierają rozkłady i cechy, ale nie porównywalny szereg lat dotyczący oszustw SMS lub BLIK. | Nie liczyć trendu ani stwierdzać wzrostu/spadku oszustw na podstawie jednorazowych udziałów klas. |
+
+Kontrola wyników publicznych powinna obejmować co najmniej:
+
+1. liczebność i udział klas przed i po jawnej analizie duplikatów,
+2. rozdzielenie zbioru tak, aby ten sam tekst lub ten sam URL nie występował jednocześnie w treningu i teście,
+3. porównanie cech grupami etykiet z medianą, kwartylami i wielkością efektu,
+4. korektę wielokrotnych porównań i osobne raportowanie niepewności,
+5. uzupełnienie analizy niezależnymi polskimi danymi przed jakąkolwiek oceną skanera lub oszustw BLIK.
+
 ## Plan przygotowania i analizy danych
 
 ### Jakość danych
@@ -98,11 +122,53 @@ Przytoczone odpowiedzi zawierają oznaki błędnego wyświetlania polskich znak�
 | 25 — pilny BLIK | Przeszukane raporty nie zawierają przykładu wiadomości ani statystyk BLIK | To poprawnie ogranicza wniosek do zawartości indeksowanych raportów. Brak wzmianki nie dowodzi, że oszustwa BLIK są nowe lub rzadkie. |
 | 26 — konkretny link | Zagregowane raporty nie potwierdzają konkretnej domeny `g00gle.com` | Odpowiedź słusznie odróżnia rozkład zbioru od reputacji pojedynczego URL-a. Do tego służy skaner lub aktualne źródło reputacji, nie zagregowana tabela klas. |
 
+### Zbadane ryzyko wyników demo 22–26
+
+Dema 22–26 sprawdzają przede wszystkim poprawność odpowiedzi RAG i granice interpretacji wyników. Nie tworzą zestawu testowego o znanej podstawie prawdy dla jakości systemu, więc nie należy z ich wyniku wyliczać dokładności, czułości ani współczynnika fałszywych alarmów.
+
+| Ryzyko | Ocena dla dema | Zapewnienie kontroli |
+| --- | --- | --- |
+| Odwrócenie znaczenia etykiety | Ryzyko wysokie w demie 22: `label=1` oznacza legalny URL, a nie phishing. Odczytanie odwrotnie prowadziłoby do błędnego udziału phishingu wynoszącego 57,19% zamiast 42,81%. | Porównać kod z dokumentacją zbioru i zawsze podawać nazwy klasy dla danego źródła. |
+| Niezweryfikowana semantyka kodów | W demie 23 liczby dla `1` i `-1` są poprawne, ale bez dokumentacji wyniku klasy można pomylić ich znaczenie. | Zachować w odpowiedzi kody `1` i `-1` oraz powiązać je z semantyką po osobnym potwierdzeniu dokumentacji. |
+| Ekstrapolacja z etykiety zbioru | Dema 24 pokazuje udział spamu w angielskim zbiorze SMS, ale nie orzeka o konkretnych wiadomościach ani polskich oszustwach BLIK. | Nie używać udziału 13,41% jako oceny ryzyka konkretnego SMS-a; określić zasięg wyników jako jeden zbiór. |
+| Dowód nieobecności | Demo 25 może poprawnie stwierdzić, że brakowało przykładu lub statystyki BLIK w `reports/`, ale to nie dowodzi, że zdarzenia nie istniały poza nim. | Podać zakres indeksowanych plików i datę przeszukania; braku wzmianki nie interpretować jako braku zagrożenia ani trendu. |
+| Reputacja pojedynczego linku | Demo 26 potwierdziło tylko brak agregowanego wpisu o `g00gle.com`; nie potwierdziło ani nie obaliło, czy ten konkretny adres jest phishingowy. | Dla bieżącej oceny użyć `/scan` lub `/ai/explain`; wynik silnika również nie zastępuje reputacji aktywnej domeny ani niezależnego źródła. |
+| Błędne dekodowanie znaków | Przytoczone `fragmentÃ³w` i `Å¹rÃ³dÅo` może zmniejszyć wiarygodność cytatu i utrudnić ocenę źródła. Sam tekst nie rozstrzyga, gdzie powstał problem. | Zweryfikować surową odpowiedź HTTP i końcową treść terminalową; raportować zachowaną wartość JSON i encoding. |
+| Niepełna baza źródłowa | RAG może odpowiedzieć tylko na podstawie indeksu raportów i CSV, a demo nie obejmuje wszystkich publicznych raportów ani aktualnych list domen. | Zwracać cytowane źródło i jawnie wskazywać ograniczenie „odnalezione raporty”; nie uogólniać na całą przestrzeń incydentów. |
+| Zbyt rozbudowane wnioski | Wyniki liczbowe mogą zostać przedstawione jako trend, skuteczność czy stopień zagrożenia, mimo braku szeregu czasowego i zbioru testowego. | Wyznaczać tylko statystyki opisowe dostępnych danych oraz osobno raportować próbę walidacyjną z metrykami błędów. |
+
+Wynik kontroli dla demo 22–26 należy oceniać per demo:
+
+- Demo 22 i 23 ryzykują przede wszystkim błędną interpretacją kodów klas.
+- Demo 24 ryzykuje uogólnieniem statystyki jednego zbioru na konkretną wiadomość lub oszustwa BLIK.
+- Demo 25 ryzykuje błędem „dowodu braku” i wnioskowaniem o nowości lub rzadkości.
+- Demo 26 ryzykuje zastąpieniem aktualnej oceny domeny wynikiem agregatu statystycznego.
+
+#### Wniosek dotyczący lokalnego indeksu
+
+Dema pokazują jedynie, że w indeksowanych lokalnie raportach nie znaleziono odpowiednich statystyk ani przykładu „pilnego BLIKA”. Nie oznacza to, że takie oszustwa nie są opisane w innych źródłach publicznych. Policja opisywała wyłudzenia kodów BLIK i pilne prośby o pożyczkę już w 2020 r.; ten komunikat dokumentuje przypadki, ale nie stanowi kompletnej statystyki rocznej ani dowodu na porównywalną częstość z phishingiem. [Policja: ostrzeżenie z 27 maja 2020 r.](https://policja.pl/pol/aktualnosci/189192,Uwaga-na-oszustow-wyludzajacych-kody-BLIK.html)
+
 ## Czy z tych wyników wynika, że BLIK to nowe zagrożenie?
 
 Nie. Dema 22–26 nie analizują dat zdarzeń ani zmian częstości oszustw BLIK i phishingu. Demo 25 informuje tylko, że przeszukane raporty nie zawierały szukanych przykładów lub statystyk. Istnieją starsze materiały o phishingu: UCI podaje artykuł z 2012 r. i datę przekazania zbioru Phishing Websites w 2015 r. [UCI: Phishing Websites](https://archive.ics.uci.edu/dataset/327/phishing%20websites). To potwierdza wcześniejsze badania phishingu, ale samo w sobie nie mierzy skali zagrożenia w kolejnych latach.
 
 Teza, że oszustwa z kodami BLIK są „świeższe”, może być osobnym pytaniem desk research, ale wymaga zestawienia datowanych i porównywalnych danych o incydentach lub stratach. Publikowane przez BLIK wolumeny transakcji nie są liczbą oszustw; przykłady postępowań policyjnych nie są pełnym szeregiem statystycznym. Jeśli nie znajdzie się wspólnej definicji i danych za kolejne lata dla obu zjawisk, w raporcie należy napisać, że porównanie historyczne nie jest możliwe na podstawie dostępnych źródeł.
+
+## Zbadane ryzyko działania silnika
+
+Ocena ryzyka w `engine.py` jest hybrydowym pipeline'em. Wynik ML jest punktem bazowym, a następnie są na niego nakładane reguły BLIK, linków, słów kluczowych, bezpiecznego kontekstu i intencji. Ostateczny wynik jest ograniczony do przedziału 0–100 i klasyfikowany jako: `LOW RISK` poniżej 50, `MEDIUM RISK` od 50 do 79 oraz `HIGH RISK` od 80. Potwierdzony kontekst BLIK zachowuje co najmniej wynik 60, a wykryty typosquatting co najmniej wynik 90.
+
+| Zbadane ryzyko | Dowód lub mechanizm | Konsekwencja i reakcja |
+| --- | --- | --- |
+| Fałszywy alarm | Zaufany lub legalny kontekst może obniżyć wynik przez kontekst bezpieczny i zaufane domeny, ale może zostać podwyższony przez hasła, intencję lub podejrzany link. | Wynik nie dowodzi oszustwa. Wiadomość należy traktować jako sygnał do weryfikacji, szczególnie gdy BLIK, pilność i link występują razem. |
+| Nie wykryte zagrożenie | Nieznana domena lub nowe sformułowanie może nie trafić do reguł ML; brak dopasowania nie oznacza, że link jest bezpieczny. | Nie należy interpretować `LOW RISK` jako potwierdzenia bezpieczeństwa ani otwierać linku tylko w celu jego sprawdzenia. |
+| Nadmierna pewność modelu ML | `MlRiskAssessment.score` pochodzi z prawdopodobieństwa klasyfikatora; `p=...` nie jest skalibrowanym prawdopodobieństwem faktycznego oszustwa. | Nie publikować wyników jako ocen pewności ani dostrajać progów na podstawie pojedynczych demo. |
+| Nadinterpretacja twardych reguł | Mnożniki i kwoty punktowe mogą kumulować się, a intencja, BLIK i typosquatting mają wpływ na status nawet przy niskim bazowym wyniku ML. | Wynik należy raportować wraz z polem `reasons`; jeden wynik liczbowy nie opisuje jakości dowodu. |
+| Fałszywa ocena literówek | Tylko domena zarejestrowana przez wybraną listę zaufanych domen jest porównywana z odległością Levenshteina do wartości tej listy. | `g00gle.com` może zostać oznaczony jako podejrzany, ale inna, nowa lub nietypowa domena może zostać pominięta. |
+| Ryzyko prywatności | Zaimplementowane reguły wymagają przetwarzania treści i mogą zwracać pełną nazwę podejrzanego linku w `reasons`. | W odpowiedzi powinien pozostać mechanizm redagowania sześciocyfrowych kodów BLIK; raporty i logi nie powinny przechowywać całej treści bez potrzeby. |
+| Brak wiarygodnej walidacji | Model treningowy ma tylko 16 ręcznych przykładów, a dostępne zbiory nie tworzą reprezentatywnego, polskiego testu skanera. | Do oceny należy policzyć precision, recall, fałszywie pozytywne i fałszywie negatywne wyniki na niezależnym zbiorze oznaczonym przez eksperta. |
+
+Testy demonstracyjne potwierdzają wybrane zachowania lokalnego silnika: uznanie ostrego, obfuskowanego lub podejrzanego komunikatu za ryzykowny, zachowanie wyników co najmniej 60 dla potwierdzonego BLIK i 90 dla typosquattingu oraz redagowanie kodu BLIK w `reasons`. Nie są one jednak badaniem statystycznym jakości wykrywania. Do zbadania ryzyka operacyjnego wymagane jest osobne oznaczenie wiadomości, rozdzielenie zbiorów treningowego i testowego oraz raportowanie macierzy błędów.
 
 ## Ograniczenia i plan pracy
 
